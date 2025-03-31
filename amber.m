@@ -55,12 +55,17 @@ classdef amber
 
             % return
             % Examples
-            obj.plotPrice(15, {'2025-01-01' '2025-03-20'}, ["buy_price" "buy_kwh" "buy_price_diff" "buy_saving" "buy_saving"], ["heatmap" "heatmap" "heatmap" "heatmap" ""])
+            obj.plotPrice(18, {'2025-01-01' '2025-03-20'}, "sapn_andrew", ["buy_amount" "buy_amount" "tariff_amount" "tariff_amount" "sell_amount" "sell_amount"], ["heatmap" "" "heatmap" "" "heatmap" ""])
+            obj.plotPrice(17, {'2025-01-01' '2025-03-20'}, "sapn_serge", ["buy_amount" "buy_amount" "sell_amount" "sell_amount"], ["heatmap" "" "heatmap" ""])
             return
+            obj.plotPrice(16, {'2025-01-01' '2025-03-20'}, "sapn_andrew", ["buy_amount" "buy_amount" "sell_amount" "sell_amount"], ["heatmap" "" "heatmap" ""])
+            % return
+            obj.plotPrice(15, {'2025-01-01' '2025-03-20'}, "amber_nmi", ["buy_price" "buy_amount" "buy_price_diff" "buy_saving" "buy_saving"], ["heatmap" "heatmap" "heatmap" "heatmap" ""])
+            % return
             obj.plotPrice(14, {'2025-01-01' '2025-03-20'}, ["buy_price"], ["heatmap" ])            
             % obj.plotPrice(13, {'2025-01-01' '2025-03-20'}, "net_saving", "heatmap")
             obj.plotPrice(12, {'2025-01-01' '2025-03-20'}, ["buy_saving" "sell_saving"], "heatmap")
-            obj.plotPrice(11, {'2025-01-01' '2025-03-01'}, ["buy_kwh" "sell_kwh"], "heatmap")
+            obj.plotPrice(11, {'2025-01-01' '2025-03-01'}, ["buy_amount" "sell_amount"], "heatmap")
             obj.plotPrice(10, {'2025-01-01' '2025-03-01'}, ["buy_price" "sell_price"], "heatmap")
             obj.plotPrice(9, {'2025-01-01' '2025-03-01'}, ["buy_price_diff" "sell_price_diff"], "heatmap")
             obj.plotPrice(8, {'2025-01-01' -1}, ["buy_price" "sell_price"], "24hr")
@@ -73,29 +78,42 @@ classdef amber
             obj.plotPrice(1, {'2025-01-01' '2025-01-01'}, "buy_price&sell_price", "5min")
         end
 
-        function plotPrice(obj, fig, span, type, mode)
+        function plotPrice(obj, fig, span, source, type, mode)
             if nargin < 5 || isempty(mode)
                 mode = "";
             end
             if ~isscalar(type) && isscalar(mode)
                 mode = repmat(mode, size(type));
             end
+            
+            switch source
+                case 'sapn_andrew'
+                    T = nem12read('sapn\andrew');
+                case 'sapn_serge'
+                    T = nem12read('sapn\serge');
+                case 'amber_prices_30min'
+                    T = obj.getData('prices', span, 30);
+                case 'amber_prices_5min'
+                    T = obj.getData('prices', span, 5);
+                case 'amber_usage_30min'
+                    T = obj.getData('usage', span, 30);
+                case 'amber_usage_5min'
+                    T = obj.getData('usage', span, 5);
+                otherwise
+                    error('Unknown source: %s\n',source)
+            end
 
-            T = obj.getData('prices', span, 30);
-            T2 = obj.getData('prices', span, 5);
-
+            % Prepare figure
             figure(fig), clf
-            set(fig, 'WindowStyle', 'docked', 'Color', 'k')
+            set(fig, 'WindowStyle', 'docked', 'Color', 'k', 'NumberTitle', 'off', 'Name', num2str(fig))
+            plot_y = linspace(0.03, 0.97, numel(type) + 1); % Plot heights
 
-            % Plot heights
-            plot_y = linspace(0.08, 0.95, numel(type) + 1);
-
-            % Plot ony axis at a time
-            A = []; % Init axis handles
+            % Plot one axis at a time
+            A = []; % Init handles list
             for k = 1:numel(type)
                 
                 % Setup axis
-                a = axes('Position', [0.1 plot_y(end-k) 0.8 plot_y(end-k+1) - plot_y(end-k)], ...
+                a = axes('Position', [0.08 plot_y(end-k) 0.84 plot_y(end-k+1) - plot_y(end-k)], ...
                     'Color', 'k', 'XColor', [0.6 0.6 0.6], 'YColor', [0.6 0.6 0.6], 'GridColor', [0.6 0.6 0.6]);
                 hold on, grid on, box on, axis tight
                 switch k
@@ -107,8 +125,24 @@ classdef amber
                 X = T.start;
                 switch type(k)
 
+                    case {'buy_amount' 'sell_amount'  'tariff_amount'}
+                        ylabel(regexprep([source; type(k)], {'_' 'amount'}, {' ' '(kwh)'}))
+                        X = T.start;
+                        Y = T.(type(k));
+                        [c, cmap, cstr] = col(type(k));
+                        switch mode(k)
+                            case "heatmap"
+                                plotHeatmap(a, X, Y, cmap)
+                            case ""
+                                d = dateshift(X, 'start', 'day');
+                                y = accumarray(findgroups(d), Y, [], @sum);
+                                t = sprintf([cstr '%.2fkwh\n'], sum(y));
+                                plotLine(a, unique(d), y, c, 'DisplayName', t)
+                                legend show
+                        end
+
                     case {'buy_price' 'sell_price' 'tariff_price'}
-                        ylabel(type(k), 'Interpreter', 'none')
+                        ylabel(regexprep(type(k), {'_' 'amount'}, {' ' '(kwh)'}))
                         Y = T.(type(k));
                         c = col(type(k));
                         switch mode(k)
@@ -136,67 +170,52 @@ classdef amber
                                 plotLine(a, X, Y, c)
                         end
 
-                    case {'buy_kwh' 'sell_kwh'}
-                        ylabel(type(k), 'Interpreter', 'none')
-                        T = obj.getData('usage', span, 30);
-                        X = T.start;
-                        Y = T.(type(k));
-                        switch mode(k)
-                            case "heatmap"
-                                if startsWith(type(k), 'sell')
-                                    cmap = rbg;
-                                else
-                                    cmap = flipud(rbg);
-                                end
-                                plotHeatmap(a, X, Y, cmap)
-                        end
-
                     case 'buy_saving'
-                        ylabel(type(k), 'Interpreter', 'none')
+                        ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
                         T = obj.getData('prices', span, 30);
                         T2 = obj.getData('usage', span, 30);
                         X = T.start;
                         switch mode(k)
                             case ""
-                                Y = agl(X, 'buy_price') .* T2.buy_kwh;
+                                Y = agl(X, 'buy_price') .* T2.buy_amount;
                                 d = dateshift(X, 'start', 'day');
                                 y1 = accumarray(findgroups(d), Y, [], @sum)/100 + agl([], 'supply');
                                 t = sprintf('\\color[rgb]{1 .2 .2}AGL = $%.2f\n', sum(y1) );
                                 plotLine(a, unique(d), y1, [1 .2 .2], 'DisplayName', t)
 
-                                Y = T.buy_price .* T2.buy_kwh;
+                                Y = T.buy_price .* T2.buy_amount;
                                 d = dateshift(X, 'start', 'day');
-                                y2 = accumarray(findgroups(d), Y, [], @sum)/100 + amb([], 'supply');
-                                t = sprintf('\\color[rgb]{.4 .4 1}Amber = $%.2f\n', sum(y2) );
-                                plotLine(a, unique(d), y2, [0.2 .2 1], 'DisplayName', t)
+                                y = accumarray(findgroups(d), Y, [], @sum)/100 + amb([], 'supply');
+                                t = sprintf('\\color[rgb]{.4 .4 1}Amber = $%.2f\n', sum(y) );
+                                plotLine(a, unique(d), y, [0.2 .2 1], 'DisplayName', t)
 
-                                y3 = y2-y1;
+                                y3 = y-y1;
                                 t = sprintf('\\color[rgb]{.2 1 .2}Saving = $%.2f', sum(y3));
                                 plotLine(a, unique(d), y3, [.2 1 .2], 'DisplayName', t)
 
-                                legend('show', 'TextColor', 'w')
+                                legend show
 
                             case "heatmap"
-                                Y = (T.buy_price - agl(X, 'buy_price')) .* T2.buy_kwh;
+                                Y = (T.buy_price - agl(X, 'buy_price')) .* T2.buy_amount;
                                 plotHeatmap(a, X, Y, flipud(rbg))
                         end
                         
                     case 'sell_saving'
-                        ylabel(type(k), 'Interpreter', 'none')
+                        ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
                         T = obj.getData('prices', span, 30);
                         T2 = obj.getData('usage', span, 30);
                         X = T.start;
-                        % Y = (T.sell_price - agl(X,'sell')) .* T2.sell_kwh;
-                        Y = (T.sell_price ) .* T2.sell_kwh;
+                        % Y = (T.sell_price - agl(X,'sell')) .* T2.sell_amount;
+                        Y = (T.sell_price ) .* T2.sell_amount;
                         cmap = rbg;
                         plotHeatmap(a, X, Y, cmap)
 
                     case 'net_saving'
-                        ylabel(type(k), 'Interpreter', 'none')
+                        ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
                         T = obj.getData('prices', span, 30);
                         T2 = obj.getData('usage', span, 30);
                         X = T.start;
-                        Y = (T.sell_price - agl(X,'sell')) .* T2.sell_kwh;
+                        Y = (T.sell_price - agl(X,'sell')) .* T2.sell_amount;
                         cmap = rbg;
                         plotHeatmap(a, X, Y, cmap)
 
@@ -210,7 +229,7 @@ classdef amber
                         end
 
                     case {'buy_price_diff' 'sell_price_diff'}
-                        ylabel(type(k), 'Interpreter', 'none')
+                        ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
                         m = strrep(type(k), '_diff', '');
                         Y = T.(m) - agl(X, m);
                         c = col(m);
@@ -255,6 +274,10 @@ classdef amber
             ind = arrayfun(@(x)isduration(x.YLim)&isduration(x.YLim), A);
             if any(ind)
                 linkaxes(A(ind), 'xy')
+            end
+            if k == numel(type)
+                file = sprintf('plots/%g.png', gcf().Number);
+                figsave(gcf, file, [1920 1080])
             end
 
         end
@@ -556,10 +579,10 @@ switch type
         T = unstack(T, {'kwh' 'perKwh'}, 'channelType');
 
         % Improve column names
-        T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'(.*)_(.*)' 'general' 'feedIn' 'controlledLoad' '_perKwh' 'Time'}, {'$2_$1' 'buy' 'sell' 'tariff' '_price' ''});
+        T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'(.*)_(.*)' 'general' 'feedIn' 'controlledLoad' '_perKwh' 'kwh' 'Time'}, {'$2_$1' 'buy' 'sell' 'tariff' '_price' 'amount' ''});
 
         % Re-order columns
-        T = movevars(T, {'buy_kwh' 'buy_price' 'sell_kwh' 'sell_price' 'tariff_kwh' 'tariff_price'}, 'After', 'duration');
+        T = movevars(T, {'buy_amount' 'buy_price' 'sell_amount' 'sell_price' 'tariff_amount' 'tariff_price'}, 'After', 'duration');
 
 end
 end
@@ -590,24 +613,31 @@ end
 plot(ax, X(:), Y(:), 'color', color, 'LineWidth', 1, varargin{:})
 end
 
-function plotHeatmap(ax, x, y, cmap)
-% Time of day and date extraction
+function plotHeatmap(ax, x, y, cmap, tod_step)
+
+% Defaults
+if nargin<5 || isempty(step), tod_step = minutes(mode(diff(x))); end
+
+% Get time of day and date
 tod = timeofday(x); % Time of day > Y
 day = x - tod; % Date > X
 
 % Form an array - time vs data
-tod_step = 0.5; % hours
-tod_edges = duration(0:tod_step:24, 0, 0);
+tod_edges = duration(0, 0:tod_step:24*60, 0, 0);
 day_edges = min(day):max(day)+1;
 [~, ~, tod_i] = histcounts(tod, tod_edges); % Bin based on time
 [~, ~, day_i] = histcounts(day, day_edges); % Bin based on day
 A = accumarray([tod_i day_i], y);
 
 % Display heat map
-h = imagesc(ax, day_edges([1 end-1])+0.5, tod_edges([1 end-1]) + tod_step/2/24 , A);
+h = imagesc(ax, day_edges([1 end-1])+0.5, tod_edges([1 end-1]) + tod_step/2/24/60 , A);
 colormap(ax, cmap)
-clim([-1 1]*min(max(abs(y)), 160))
-p = ax.Position; colorbar; ax.Position = p; % Display colorbar, don't move plot
+clim([-1 1]*min(max(A(:)), 160))
+p = ax.Position;
+hc = colorbar;
+set(hc, 'color', [0.6 0.6 0.6]);
+ax.Position = p; % Display colorbar, don't move plot
+set(hc, 'Position', hc.Position.*[1 1 0.6 1]-[0.01 0 0 0]);
 xline(xlim, 'w'), yline(ylim, 'w') % Draw a box around the plot
 ax.YAxis.TickLabelFormat = 'hh:mm';
 
@@ -617,24 +647,23 @@ h.UserData = struct('A', A, 'tod_edges', tod_edges, 'day_edges', day_edges, 'ax'
 set(dcm, 'UpdateFcn', @dataTip);
 end
 
-% Custom data cursor function
 function txt = dataTip(~, event)
-    h = event.Target; % Get axis that triggered the event
-    ud = h.UserData;  % Retrieve the UserData struct
+% Custom data cursor function
+h = event.Target; % Get axis that triggered the event
+ud = h.UserData;  % Retrieve the UserData struct
 
-    if isempty(ud)
-        txt = ''; return
-    end
-
-    % Get the datetime positions based on the cursor position
-    [~, ~, day_i] = histcounts(num2ruler(event.Position(1), ud.ax.XAxis), ud.day_edges);
-    [~, ~, tod_i] = histcounts(num2ruler(event.Position(2), ud.ax.YAxis), ud.tod_edges);
-
-    % Format the data tip text
-    txt = sprintf('Value: %.2f\nTime: %s\nDay: %s', ud.A(tod_i, day_i), ...
-        char(ud.tod_edges(tod_i)), char(ud.day_edges(day_i)));
+if isempty(ud)
+    txt = ''; return
 end
 
+% Get the datetime positions based on the cursor position
+[~, ~, day_i] = histcounts(num2ruler(event.Position(1), ud.ax.XAxis), ud.day_edges);
+[~, ~, tod_i] = histcounts(num2ruler(event.Position(2), ud.ax.YAxis), ud.tod_edges);
+
+% Format the data tip text
+txt = sprintf('Value: %.2f\nTime: %s\nDay: %s', ud.A(tod_i, day_i), ...
+    char(ud.tod_edges(tod_i)), char(ud.day_edges(day_i)));
+end
 
 function str = dataTip2(~, e)
 i = round(e.Position(1));
@@ -688,15 +717,14 @@ switch f
 end
 end
 
-
-
-function c = col(str)
+function [c, cmap, cstr] = col(str)
 str = char(str);
 switch str(1:3)
-    case 'buy', c = [1.0 0.3 0.3];
-    case 'sel', c = [0.3 0.3 1.0];
-    case 'con', c = [1.0 0.3 1.0];
+    case 'buy', c = [1.0 0.3 0.3]; cmap = flipud(rbg);
+    case 'sel', c = [0.3 1.0 0.3]; cmap = rbg;
+    case 'tar', c = [1.0 0.3 1.0]; cmap = flipud(rbg);
 end
+cstr = sprintf('\\\\color[rgb]{%g %g %g}', c);
 end
 
 function cmap = rbg
@@ -708,7 +736,7 @@ cmap = [
     0.1 0   0
     1.0 0   0
     1.0 0.7 0.7];
-cmap = interp1([-100 -70 -1 0 1 70 100], cmap, 100:-1:-100);
+cmap = interp1([-130 -65 -1 0 1 65 130], cmap, 130:-1:-130);
 end
 
 function mybar3
