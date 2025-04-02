@@ -4,6 +4,12 @@
 % "usage" is not available for current data and possibly last day
 % "prices" includes forecasts when time span includes future periods
 
+% Current data:
+% - Sometimes current values for (buy_high sell_high buy_low sell_low
+%   buy_predicted sell_predicted) are NaN for the duration of an interval
+% - forecast values are not nan
+% - values can change at any time, but mostly on the 5 mintue mark
+
 
 % aims:
 % 1. show saving relative to agl
@@ -20,14 +26,15 @@ classdef amber
         siteId
         state
         nmi
-        datafold = fileparts(mfilename('fullpath'))
+        activeFrom
+        datafold = fullfile(fileparts(mfilename('fullpath')), 'amber')
     end
 
     methods
 
-        function obj = amber
+        function obj = amber(varargin)
 
-            % Read settings
+            % ini settings
             ini = fullfile(fileparts(mfilename('fullpath')), 'amber.ini');
             if isfile(ini)
                 txt = fileread(ini);
@@ -39,19 +46,28 @@ classdef amber
                 end
             end
 
-            % Get siteId if not provided download it
+            % User settings
+            for k = 1:2:nargin
+                obj.(varargin{k}) = varargin{k + 1};
+            end
+
+            % Download siteId, if needed
             if isempty(obj.siteId)
-                [site, channels] = obj.getSites;
+                site = obj.getSites;
                 disp(site)
-                disp(channels)
+                disp(site.channels)
                 obj.siteId = site.id;
                 fprintf(2, 'To skip this step in the future assign the "siteId" property in your "amber.ini" settings file to be the "id" value above.\n')
                 pause(1)
             end
 
+
+            obj.pollCurrentData(5)
             % obj.getSites;
-            % obj.getData('usage', {'2025-03-21' -1}, 30);
-            % obj.getData('prices', {'2025-03-21' 0}, 30);
+            % obj.getData('prices', {'2024-11-01' 0}, 5);
+            % obj.getData('usage', {'2024-12-23' -1}, 30);
+            
+            return
 
             % return
             % Examples
@@ -76,6 +92,20 @@ classdef amber
             obj.plotPrice(3, {'2025-01-01' '2025-01-01'}, ["buy_price" "sell_price"], "agl")
             obj.plotPrice(2, {'2025-01-01' '2025-01-01'}, ["buy_price" "sell_price"], ["36" "6" "18"])
             obj.plotPrice(1, {'2025-01-01' '2025-01-01'}, "buy_price&sell_price", "5min")
+        end
+
+        function pollCurrentData(obj, period)
+            while true
+                % Wait for 1-2 minute past the period mark, to ensure
+                % prices update and polling is randomised
+                nextTime = dateshift(datetime, 'start', 'minute') + minutes(period - mod(minute(datetime), period) + 1 + rand);
+                disp(nextTime)
+                pause(seconds(nextTime - datetime))
+
+                % Download
+                obj.getCurrent('prices', {-48 48}, 30); % 30 minute data
+                obj.getCurrent('prices', {-576 576}, 5); % 5 minute data
+            end
         end
 
         function plotPrice(obj, fig, span, source, type, mode)
@@ -328,105 +358,124 @@ classdef amber
             xlim([min(T.start) max(T.start)])
         end
 
-        function T = getData(obj, type, span, rez)
-            % Download and cache price data.
-            persistent last_download
+        function data = getSites(obj)
+            % Download site informaiton
+            [err, json] = obj.geturl('https://api.amber.com.au/v1/sites');
+            assert(~err, '%s', json) % Abort if error
+
+            % Parse data
+            data = jsondecode(json);
+            if isfield(data, 'channels') % Convert channels field to a table of strings
+                t = varfun(@string, struct2table(data.channels));
+                t.Properties.VariableNames = fieldnames(data.channels);
+                data.channels = t;
+            end
+        end
+
+        function data = getCurrent(obj, type, span, rez)
+            % Get current prices or renewables - from server.
+
             if nargin<3 || isempty(rez), rez = 30; end
-            if isempty(last_download), last_download = NaT; end
-            delay = 5;
+
+            % Set output file path (no extension)
+            switch type
+                case 'prices',     file = fullfile(obj.datafold, sprintf('%s_%s_%gmin_current', obj.nmi,   type, rez), char(datetime, 'yyyyMMdd_HHmmss'));
+                case 'renewables', file = fullfile(obj.datafold, sprintf('%s_%s_%gmin_current', obj.state, type, rez), char(datetime, 'yyyyMMdd_HHmmss'));
+            end
+            [~, ~] = mkdir(fileparts(file));
+
+            % Download
+            url_span = sprintf('previous=%g&next=%g', abs(span{1}), abs(span{2})); % Time span
+            url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '/current?' url_span '&resolution=' num2str(rez)]; % REST URL query
+            [err, json] = obj.geturl(url); % Download
+
+            % Print error
+            if err
+                fprintf(2, 'Error: %s\n', json)
+            end
+
+            % Write json to file
+            filewrite([file '.json'], json)
+
+            % Convert json to a table
+            % data = fixData(type, json);
+            % data = fixForecastData(type, json);
+        end
+
+        function T = getData(obj, type, span, rez)
+            % Get historic prices or usage - from files or server.
+
+            if nargin<3 || isempty(rez), rez = 30; end
+
+            % Check span
+            if ~isempty(obj.activeFrom)
+                span{1} = max(checkdate(span{1}), checkdate(obj.activeFrom));
+            end
 
             % Step through days
             T = []; % Large table to hold all data
             for day = checkdate(span{1}) : checkdate(span{end})
 
-                % Set output file & folder
-                if type == "usage"
-                    file = fullfile(obj.datafold, type, obj.nmi  , [num2str(rez) 'min'], char(day, 'yyyy'), char(day, 'yyyyMMdd'));
-                else
-                    file = fullfile(obj.datafold, type, obj.state, [num2str(rez) 'min'], char(day, 'yyyy'), char(day, 'yyyyMMdd'));
+                % Set output file path (no extension)
+                switch type
+                    case 'usage',  file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', obj.nmi,   type, rez), char(day, 'yyyyMMdd'));
+                    case 'prices', file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', obj.state, type, rez), char(day, 'yyyyMMdd'));
                 end
-                if ~isfolder(fileparts(file))
-                    mkdir(fileparts(file))
-                end
+                [~, ~] = mkdir(fileparts(file));
 
-                % Check existing files
-                f1 = dir([file '.json']);
-                f2 = dir([file '.parquet']);
-                if ~isempty(f1) && ...                            % File exists ..
-                        datetime(f1.date) < day + 1 + 1/24 && ... % File was saved before or close to day's end ..
-                        datetime(f1.date) + 0.5/24 < datetime     % File is more then 30 min old
-                    delete(fullfile(f1.folder, f1.name))
-                    f1 = [];
-                end
-                if isempty(f1) && ~isempty(f2)
-                    delete(fullfile(f2.folder, f2.name))
-                    f2 = [];
-                end
+                % Check if cached files exist
+                json_file = dir([file '.json']);
+                parquet_file = dir([file '.parquet']);
 
-                % Download or read cached data
-                if ~isempty(f2)
-
+                % Check if cached file is stale
+                if ~isempty(json_file) && ...                            % if JSON file exists, but ...
+                        datetime(json_file.date) < day + 1 + 1/24 && ... % file was saved near day's end, and ...
+                        datetime(json_file.date) + 0.5/24 < datetime     % file is more then 30 min old, then
+                    delete(fullfile(json_file.folder, json_file.name))   % delete the file, as it may be stale
+                    json_file = [];
+                    if ~isempty(parquet_file)
+                        delete(fullfile(parquet_file.folder, parquet_file.name))
+                        parquet_file = [];
+                    end
+                end
+                
+                if ~isempty(parquet_file)
                     % Load cached parquet
                     t = parquetread([file '.parquet']);
+
                 else
-
                     % Load cached json
-                    if ~isempty(f1)
+                    if ~isempty(json_file)
                         json = fileread([file '.json']);
+
                     else
-
-                        % Avoid friquent downloads
-                        pause(seconds(last_download + seconds(delay) - datetime))
-                        last_download = datetime;
-
                         % Download
-                        spanstr = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd'));
-                        json = obj.geturl(['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' spanstr '&resolution=' num2str(rez)]);
+                        url_span = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd')); % Time span component
+                        url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span '&resolution=' num2str(rez)]; % REST URL query
+                        [err, json] = obj.geturl(url); % Download
 
-                        % Parse
-                        data = jsondecode(json);
-
-                        % Check data
-                        if isempty(data)
-                            fprintf(2, '  %s\n', 'No data'), continue
-                        elseif isfield(data, 'message')
-                            fprintf(2, '  %s\n', data.message), continue
+                        % Skip on error
+                        if err
+                            fprintf(2, 'Error: %s\n', json)
+                            continue
                         end
 
-                        % Write json to file
+                        % Write json to file, even if its empty
                         filewrite([file '.json'], json)
                     end
         
-                    % Make a table of one days data
-                    t = fixData(type, json);
+                    % Skip if no data
+                    if numel(json) <= 2
+                        fprintf('  %s - no data\n', day)
+                        continue
+                    end
 
-                    % Save one days data to a parquete file
-                    parquetwrite([file '.parquet'], t);
+                    % Convert json to a table
+                    t = fixData(type, json);
+                    parquetwrite([file '.parquet'], t); % Save as parquete file
 
                 end
                 T = [T; t]; %#ok<AGROW>
-            end
-        end
-
-        function data = current(obj)
-            data = obj.geturl(['https://api.amber.com.au/v1/state/' obj.state '/renewables/current?next=48&previous=48']);
-            
-            figure(1), clf, hold on, grid on, title General
-            x = [data.startTime data.endTime]';
-            y = [data.renewables data.renewables]';
-            plot(x(:), y(:), 'b-')
-            xline(datetime('now', 'TimeZone', 'UTC'), 'r')
-            xtickformat('dd HH:mm')
-        end
-
-        function [s, channels] = getSites(obj)
-            json = obj.geturl('https://api.amber.com.au/v1/sites');
-            s = jsondecode(json);
-            if isfield(s, 'channels')
-                channels = struct2table(s.channels);
-                s = rmfield(s,'channels');
-            else
-                channels = [];
             end
         end
 
@@ -438,15 +487,39 @@ classdef amber
             data = obj.geturl('https://api.amber.com.au/v1/sites/01J23BAP2SFA218BMV8A73Y9Z9/usage?startDate=2025-01-01&endDate=2025-01-01');
         end
 
-        function json = geturl(obj, url)
+        function [err, msg] = geturl(obj, url)
+
+            % Delay to avoid friquent downloads
+            persistent time_of_last_download
+            delay_between_downloads = 5; % (sec)
+            if isempty(time_of_last_download)
+                time_of_last_download = NaT;
+            end
+            pause(seconds(time_of_last_download + seconds(delay_between_downloads) - datetime)) 
+            time_of_last_download = datetime;
+
+            % Download
             cmd = sprintf('curl -sS -X GET "%s" -H "Authorization: Bearer %s"', url, obj.token); % curl download command
-            fprintf(1, ' %s\n', cmdlink(cmd)); % Display comman on screen
-            [~, json] = system(cmd); % Run command
+            fprintf(1, ' %s\n', cmd); % Display comman on screen
+            [err, msg] = system(cmd); % Run command
+
+            % Check for errors
+            if ~err && numel(msg) > 2
+                if msg(1) ~= '{' && numel(msg)<200
+                    err = 1;
+                elseif numel(msg)<1000
+                    data = jsondecode(msg);
+                    if isfield(data, 'message')
+                        err = 1;
+                        msg = data.message;
+                    end
+                end
+            end
         end
     end
 end
 
-function T = fixForecastData(json)
+function T = fixForecastData(type, json)
 % Make table
 T = udlread2(json);
 
@@ -583,7 +656,6 @@ switch type
 
         % Re-order columns
         T = movevars(T, {'buy_amount' 'buy_price' 'sell_amount' 'sell_price' 'tariff_amount' 'tariff_price'}, 'After', 'duration');
-
 end
 end
 
