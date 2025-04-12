@@ -4,13 +4,6 @@
 % "usage" is not available for current data and possibly last day
 % "prices" includes forecasts when time span includes future periods
 
-% Current data:
-% - Sometimes current values for (buy_high sell_high buy_low sell_low
-%   buy_predicted sell_predicted) are NaN for the duration of an interval
-% - forecast values are not nan
-% - values can change at any time, but mostly on the 5 mintue mark
-
-
 % aims:
 % 1. show saving relative to agl
 % 2. show historic power usage and cost
@@ -62,7 +55,7 @@ classdef amber
             end
 
 
-            obj.pollCurrentData(5)
+            % obj.downloadForecastPeriodicaly(5)
             % obj.getSites;
             % obj.getData('prices', {'2024-11-01' 0}, 5);
             % obj.getData('usage', {'2024-12-23' -1}, 30);
@@ -92,20 +85,6 @@ classdef amber
             obj.plotPrice(3, {'2025-01-01' '2025-01-01'}, ["buy_price" "sell_price"], "agl")
             obj.plotPrice(2, {'2025-01-01' '2025-01-01'}, ["buy_price" "sell_price"], ["36" "6" "18"])
             obj.plotPrice(1, {'2025-01-01' '2025-01-01'}, "buy_price&sell_price", "5min")
-        end
-
-        function pollCurrentData(obj, period)
-            while true
-                % Wait for 1-2 minute past the period mark, to ensure
-                % prices update and polling is randomised
-                nextTime = dateshift(datetime, 'start', 'minute') + minutes(period - mod(minute(datetime), period) + 1 + rand);
-                disp(nextTime)
-                pause(seconds(nextTime - datetime))
-
-                % Download
-                obj.getCurrent('prices', {-48 48}, 30); % 30 minute data
-                obj.getCurrent('prices', {-576 576}, 5); % 5 minute data
-            end
         end
 
         function plotPrice(obj, fig, span, source, type, mode)
@@ -372,38 +351,8 @@ classdef amber
             end
         end
 
-        function data = getCurrent(obj, type, span, rez)
-            % Get current prices or renewables - from server.
-
-            if nargin<3 || isempty(rez), rez = 30; end
-
-            % Set output file path (no extension)
-            switch type
-                case 'prices',     file = fullfile(obj.datafold, sprintf('%s_%s_%gmin_current', obj.nmi,   type, rez), char(datetime, 'yyyyMMdd_HHmmss'));
-                case 'renewables', file = fullfile(obj.datafold, sprintf('%s_%s_%gmin_current', obj.state, type, rez), char(datetime, 'yyyyMMdd_HHmmss'));
-            end
-            [~, ~] = mkdir(fileparts(file));
-
-            % Download
-            url_span = sprintf('previous=%g&next=%g', abs(span{1}), abs(span{2})); % Time span
-            url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '/current?' url_span '&resolution=' num2str(rez)]; % REST URL query
-            [err, json] = obj.geturl(url); % Download
-
-            % Print error
-            if err
-                fprintf(2, 'Error: %s\n', json)
-            end
-
-            % Write json to file
-            filewrite([file '.json'], json)
-
-            % Convert json to a table
-            % data = fixData(type, json);
-            % data = fixForecastData(type, json);
-        end
-
         function T = getData(obj, type, span, rez)
-            % Get historic prices or usage - from files or server.
+            % Read or download prices or usage data
 
             if nargin<3 || isempty(rez), rez = 30; end
 
@@ -471,12 +420,213 @@ classdef amber
                     end
 
                     % Convert json to a table
-                    t = fixData(type, json);
+                    t = obj.readDataFile(type, [file '.json']);
                     parquetwrite([file '.parquet'], t); % Save as parquete file
 
                 end
                 T = [T; t]; %#ok<AGROW>
             end
+        end
+
+        function T = readDataFile(~, type, file)
+            % Read prices or usage JSON data file and output a table
+            data = jsondecode(fileread(file));
+
+            % Convert to array of structs
+            if iscell(data)
+                for k = 1:numel(data)
+                    if isfield(data{k}, 'tariffInformation')
+                        data{k} = rmfield(data{k}, 'tariffInformation'); % privides forecast price, in "prices" and in "usage" endpoints
+                    end
+                    if isfield(data{k}, 'advancedPrice')
+                        data{k} = rmfield(data{k}, 'advancedPrice'); % privides forecast price, in "prices" endpoints
+                    end
+                    if isfield(data{k}, 'estimate')
+                        data{k} = rmfield(data{k}, 'estimate'); % indicates if record is an estimate in in "prices" endpoints
+                    end
+                end
+                data = [data{:}];
+            end
+
+            % Make a table
+            T = struct2table(data);
+
+            % Parse time
+            T.startTime = datetime(T.startTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
+            T.endTime = datetime(T.endTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
+            T.startTime = dateshift(T.startTime, 'start', 'minute'); % Round start time to neares minute
+
+            % Replace endTime with duration
+            T.duration = minutes(T.endTime-T.startTime);
+            T.endTime = [];
+
+            % Convert from UTC to nemTime TimeZone
+            timezone = T.nemTime{1}(end-5:end);
+            T.startTime.TimeZone = timezone;
+
+            switch type
+
+                case 'prices'
+                    % Remove predictions
+                    T = T(T.type == "ActualInterval", :);
+
+                    % Remove junk columns
+                    T = T(:, {'startTime' 'duration' 'perKwh' 'renewables' 'channelType'});
+
+                    % Use positive values for feedin
+                    T.perKwh(T.channelType=="feedIn") = -T.perKwh(T.channelType=="feedIn");
+
+                    % Convert channelType from rows to columns
+                    T = unstack(T, 'perKwh', 'channelType');
+
+                    % Improve column names
+                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'general' 'feedIn'  'controlledLoad'  'Time'}, {'buy_price' 'sell_price' 'tariff_price' ''});
+
+                    % Re-order columns
+                    T = movevars(T, {'buy_price' 'sell_price' 'tariff_price' 'renewables'}, 'After', 'duration');
+
+                case 'usage'
+                    % Remove predictions
+                    T = T(T.type == "Usage", :);
+
+                    % Remove junk columns
+                    T = T(:, {'startTime' 'duration' 'kwh' 'perKwh' 'channelType'});
+
+                    % Use positive values for feedin
+                    T.perKwh(T.channelType=="feedIn") = -T.perKwh(T.channelType=="feedIn");
+
+                    % Convert channelType from rows to columns
+                    T = unstack(T, {'kwh' 'perKwh'}, 'channelType');
+
+                    % Improve column names
+                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'(.*)_(.*)' 'general' 'feedIn' 'controlledLoad' '_perKwh' 'kwh' 'Time'}, {'$2_$1' 'buy' 'sell' 'tariff' '_price' 'amount' ''});
+
+                    % Re-order columns
+                    T = movevars(T, {'buy_amount' 'buy_price' 'sell_amount' 'sell_price' 'tariff_amount' 'tariff_price'}, 'After', 'duration');
+            end
+        end
+
+        function downloadForecastPeriodicaly(obj)
+            % Periodically downloads price forecasts, every 5 min.
+            %   amber().downloadForecastPeriodicaly
+            % - Downloads 24 hrs @ 30 min data and 1 hr @ 5 min.
+            % - Downloads are delayed by 30 sec after the 5 minute mark,
+            %   because prices tend to update near the start of the mark.
+            % - Downloads are further delayed by a random offset, in the
+            %   range of 0-15 sec, to be nice to the server.
+            period = 5; % Delay between downloads (min)
+            rand_offset = rand*0.25; % 15 sec
+            while true
+                now_local = datetime('now');
+                offset = minutes(period - mod(minute(now_local), period) + 0.5 + rand_offset);
+                next_local = dateshift(now_local, 'start', 'minute') + offset; % Wait 1-2 min past the mark, to ensure prices are updated and polling is randomised
+                fprintf(' Next download: %s\n', next_local) % Progress
+                pause(seconds(next_local - now_local))
+                obj.downloadForecastOnce([48 48], 30); % Download 24 hr @ 30 min
+                obj.downloadForecastOnce([12 12],  5); % Download 1 hr @ 5 min (optional)
+            end
+        end
+
+        function downloadForecastOnce(obj, span, rez)
+            % Download current price forecast, once.
+            %   amber().downloadForecastOnce(span, rez)
+            % - File name is nem time at start of download.
+            % - Prints local time to screen.
+            fold = fullfile(obj.datafold, sprintf('%s_%s_%gmin', obj.state, 'forecast', rez), 'raw');
+            if ~isfolder(fold)
+                mkdir(fold);
+            end
+            start_time = datetime('now', 'TimeZone', 'local'); % Download start time (local)
+            [err, json] = obj.geturl(sprintf('https://api.amber.com.au/v1/sites/%s/prices/current?previous=%g&next=%g&resolution=%g', obj.siteId, span, rez)); % Download
+            d = jsondecode(json);
+            start_time.TimeZone = d{1}.nemTime(end-5:end); % Switch to nem time zone
+            filewrite(fullfile(fold, [char(start_time, 'yyyyMMdd_HHmmss') '.json']), json)
+            if err
+                fprintf(2, 'Error: %s\n', json) % Print errors to screen
+            end
+        end
+
+        function T = getForecastData(obj, span, rez, forecast_limit)
+            % Read forecast data from files
+
+            if nargin<4 || isempty(forecast_limit)
+                forecast_limit = [];
+            end
+
+            all_files = dir(fullfile(obj.datafold, sprintf('%s_forecast_%gmin', obj.state, rez), 'raw', '*.json'));
+            all_times = datetime(extractBetween({all_files.name}, 1, 15), 'InputFormat', 'yyyyMMdd_HHmmss');
+
+            T = [];
+            for day = checkdate(span{1}) : checkdate(span{2})
+
+                parquet = fullfile(obj.datafold, sprintf('%s_forecast_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
+                if isfile(parquet)
+                    t = parquetread(parquet);
+                else
+                    % Read files on time (approx)
+                    files = all_files(all_times >= day - 1 & all_times <= day + 1.1);
+                    files = fullfile({files.folder}, {files.name});
+                    t = cellfun(@obj.readForecastFile, files, 'UniformOutput', false);
+                    t = vertcat(t{:});
+
+                    % Remove duplicates
+                    if ~isempty(t)
+                        t.forecast = max(t.forecast, duration(0, -rez, 0)); % Treat all historic data equaly
+                        t = unique(t, 'rows');
+
+                        % Filter data on time
+                        day.TimeZone = t.start.TimeZone;
+                        t = t(t.start >= day & t.start < day + 1, :);
+                        parquetwrite(parquet, t); % Save cache
+                    end
+                end
+                T = [T; t];
+            end
+            T.forecast.Format = 'hh:mm';
+            
+            if ~isempty(forecast_limit)
+                T = T(T.forecast < duration(forecast_limit, 0, 0), :);
+            end
+        end
+
+        function T = readForecastFile(~, file)
+            % Read forecast JSON file and output a table
+            data = jsondecode(fileread(file));
+
+            % Extract required fields and make a table
+            C = repmat({nan}, numel(data), 3); % cell array is faster then table
+            for k = 1:numel(data)
+                C(k, 1:2) = {data{k}.startTime data{k}.channelType};
+                if data{k}.type == "ActualInterval"
+                    C{k, 3} = data{k}.perKwh;
+                elseif isfield(data{k}, 'advancedPrice')
+                    C{k, 3} = data{k}.advancedPrice.predicted;
+                end
+            end
+            T = cell2table(C, 'VariableNames', {'start' 'channelType' 'price'}); % Convert cell array to table
+
+            % Format time
+            T.start = datetime(extractBetween(T.start, 1, 16), 'InputFormat', 'yyyy-MM-dd''T''HH:mm', 'Format', 'yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
+            T.start.TimeZone = data{1}.nemTime(end-5:end); % Use NEM timezone
+
+            % Compute forecast period
+            t = data{find(cellfun(@(x)x.type == "CurrentInterval", data), 1)}.startTime;
+            current_time = datetime(extractBetween(t, 1, 16), 'InputFormat', 'yyyy-MM-dd''T''HH:mm', 'TimeZone', 'UTC');
+            T = addvars(T, T.start - current_time, 'After', 'start', 'NewVariableNames', 'forecast');
+            T.forecast.Format = 'hh:mm';
+
+            % Compute query time
+            [~, f] = fileparts(file);
+            t = datetime(f, 'InputFormat', 'yyyyMMdd_HHmmss');
+            offset = minutes(mod(minute(t) -  mod(minute(t), 5), 30)); % Round down to nearest 5 minutes
+            T = addvars(T, T.start + offset, 'After', 'start', 'NewVariableNames', 'query');
+
+            % Pivot data
+            T.channelType = regexprep(T.channelType, {'general' 'feedIn' 'controlledLoad'}, {'buy_price' 'sell_price' 'tariff_price'}); % Rename terms
+            T = unstack(T, 'price', 'channelType');
+
+            % Flip sell sign
+            T.sell_price = -T.sell_price;
         end
 
         function data = prices_current(obj)
@@ -519,147 +669,7 @@ classdef amber
     end
 end
 
-function T = fixForecastData(type, json)
-% Make table
-T = udlread2(json);
-
-% Clean up
-T(:, {'duration' 'date' 'nemTime' 'tariffInformation' 'spikeStatus'}) = [];
-try
-    T.estimate = [];
-end
-T.type = strrep(T.type, 'Interval', '');
-T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'perKwh' 'PerKwh'}, {'price' 'Price'});
-
-% Extract "low" "predicted" "high" as columns from "advancedPrice"
-try
-    fields = ["low" "predicted" 'high'];
-    n = size(T, 1);
-    t = table(nan(n, 1), nan(n, 1), nan(n, 1), 'VariableNames', fields);
-    for i = 1:n
-        entry = T.advancedPrice{i};
-        if isstruct(entry)
-            assert(all(ismember(fieldnames(entry), fields)), 'unknown fields')
-            for f = fields
-                if isfield(entry, f)
-                    t.(f)(i) = string(entry.(f));
-                end
-            end
-        end
-    end
-    T = [T t];
-    T.advancedPrice = [];
-end
-
-% Split data
-buy = T(T.channelType == "general", :);
-sell = T(T.channelType == "feedIn", :);
-
-% Clean up
-buy.channelType = [];
-sell.channelType = [];
-sell.renewables = [];
-
-% Join
-T = outerjoin(buy, sell, 'Keys', ["type" "startTime" "endTime"], 'MergeKeys', true);
-
-% Order columns
-flds = sort(T.Properties.VariableNames(4:end));
-T = movevars(T, flds, 'After', 'endTime');
-
-% Rename columns
-T.Properties.VariableNames = regexprep(T.Properties.VariableNames,'(.*)_(.*)','$2_$1');
-
-% Fix values
-T.sell_price = -T.sell_price;
-try
-    T.sell_low = -T.sell_low;
-    T.sell_high = -T.sell_high;
-    T.sell_predicted = -T.sell_predicted;
-end
-end
-
-function T = fixData(type, json)
-% Parse json
-T = jsondecode(json);
-
-% Convert to array of structs
-if iscell(T)
-    for k = 1:numel(T)
-        if isfield(T{k}, 'tariffInformation')
-            T{k} = rmfield(T{k}, 'tariffInformation'); % privides forecast price, in "prices" and in "usage" endpoints 
-        end
-        if isfield(T{k}, 'advancedPrice')
-            T{k} = rmfield(T{k}, 'advancedPrice'); % privides forecast price, in "prices" endpoints 
-        end
-        if isfield(T{k}, 'estimate')
-            T{k} = rmfield(T{k}, 'estimate'); % indicates if record is an estimate in in "prices" endpoints 
-        end
-    end
-    T = [T{:}];
-end
-
-% Make a table
-T = struct2table(T);
-
-% Parse time
-T.startTime = datetime(T.startTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
-T.endTime = datetime(T.endTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
-
-% Round start time to neares minute
-T.startTime = dateshift(T.startTime, 'start', 'minute');
-
-% Append duration
-T.duration  = minutes(T.endTime-T.startTime);
-
-% Use nemTime
-timezone = T.nemTime{1}(end-5:end);
-T.startTime.TimeZone = timezone;
-T.endTime.TimeZone = timezone;
-
-switch type
-
-    case 'prices'
-        % Remove predictions
-        T = T(T.type == "ActualInterval", :);
-
-        % Remove junk columns
-        T = T(:, {'startTime' 'duration' 'perKwh' 'renewables' 'channelType'});
-
-        % Use positive values for feedin
-        T.perKwh(T.channelType=="feedIn") = -T.perKwh(T.channelType=="feedIn");
-
-        % Convert channelType from rows to columns
-        T = unstack(T, 'perKwh', 'channelType');
-
-        % Improve column names
-        T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'general' 'feedIn'  'controlledLoad'  'Time'}, {'buy_price' 'sell_price' 'tariff_price' ''});
-
-        % Re-order columns
-        T = movevars(T, {'buy_price' 'sell_price' 'tariff_price' 'renewables'}, 'After', 'duration');
-
-    case 'usage'
-        % Remove predictions
-        T = T(T.type == "Usage", :);
-
-        % Remove junk columns
-        T = T(:, {'startTime' 'duration' 'kwh' 'perKwh' 'channelType'});
-
-        % Use positive values for feedin
-        T.perKwh(T.channelType=="feedIn") = -T.perKwh(T.channelType=="feedIn");
-
-        % Convert channelType from rows to columns
-        T = unstack(T, {'kwh' 'perKwh'}, 'channelType');
-
-        % Improve column names
-        T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'(.*)_(.*)' 'general' 'feedIn' 'controlledLoad' '_perKwh' 'kwh' 'Time'}, {'$2_$1' 'buy' 'sell' 'tariff' '_price' 'amount' ''});
-
-        % Re-order columns
-        T = movevars(T, {'buy_amount' 'buy_price' 'sell_amount' 'sell_price' 'tariff_amount' 'tariff_price'}, 'After', 'duration');
-end
-end
-
-function day = checkdate(day)
+function day = checkdate(day, default_timezone)
 % Ensure day is a date.
 if isnumeric(day) && day<1000
     day = datetime + day; % day is an offset
@@ -669,11 +679,14 @@ elseif ~isdatetime(day)
     day = datetime(day); % day is string
 end
 day = dateshift(day, 'start', 'day');
+if nargin>1
+    day.TimeZone = default_timezone;
+end
 end
 
 function plotLine(ax, x, y, color, varargin)
 % Plot a line
-[X, Y] = makeStep(x, y);
+[X, Y] = makeSteps(x, y);
 if isduration(x)
     ind = find(diff(X(:))<0);
     [i, j] = sort([1:numel(X) ind']);
@@ -685,75 +698,69 @@ end
 plot(ax, X(:), Y(:), 'color', color, 'LineWidth', 1, varargin{:})
 end
 
-function plotHeatmap(ax, x, y, cmap, tod_step)
+% function plotHeatmap(ax, x, y, cmap, tod_step)
+% 
+% % Defaults
+% if nargin<5 || isempty(step), tod_step = minutes(mode(diff(x))); end
+% 
+% % Get time of day and date
+% tod = timeofday(x); % Time of day > Y
+% day = x - tod; % Date > X
+% 
+% % Form an array - time vs data
+% tod_edges = duration(0, 0:tod_step:24*60, 0, 0);
+% day_edges = min(day):max(day)+1;
+% [~, ~, tod_i] = histcounts(tod, tod_edges); % Bin based on time
+% [~, ~, day_i] = histcounts(day, day_edges); % Bin based on day
+% A = accumarray([tod_i day_i], y);
+% 
+% % Display heat map
+% h = imagesc(ax, day_edges([1 end-1])+0.5, tod_edges([1 end-1]) + tod_step/2/24/60 , A);
+% colormap(ax, cmap)
+% clim([-1 1]*min(max(A(:)), 160))
+% p = ax.Position;
+% hc = colorbar;
+% set(hc, 'color', [0.6 0.6 0.6]);
+% ax.Position = p; % Display colorbar, don't move plot
+% set(hc, 'Position', hc.Position.*[1 1 0.6 1]-[0.01 0 0 0]);
+% xline(xlim, 'w'), yline(ylim, 'w') % Draw a box around the plot
+% ax.YAxis.TickLabelFormat = 'hh:mm';
+% 
+% % Set the custom data cursor callback function
+% dcm = datacursormode(gcf);
+% h.UserData = struct('A', A, 'tod_edges', tod_edges, 'day_edges', day_edges, 'ax', ax); % Store the data in the axis UserData
+% set(dcm, 'UpdateFcn', @dataTip);
+% end
 
-% Defaults
-if nargin<5 || isempty(step), tod_step = minutes(mode(diff(x))); end
-
-% Get time of day and date
-tod = timeofday(x); % Time of day > Y
-day = x - tod; % Date > X
-
-% Form an array - time vs data
-tod_edges = duration(0, 0:tod_step:24*60, 0, 0);
-day_edges = min(day):max(day)+1;
-[~, ~, tod_i] = histcounts(tod, tod_edges); % Bin based on time
-[~, ~, day_i] = histcounts(day, day_edges); % Bin based on day
-A = accumarray([tod_i day_i], y);
-
-% Display heat map
-h = imagesc(ax, day_edges([1 end-1])+0.5, tod_edges([1 end-1]) + tod_step/2/24/60 , A);
-colormap(ax, cmap)
-clim([-1 1]*min(max(A(:)), 160))
-p = ax.Position;
-hc = colorbar;
-set(hc, 'color', [0.6 0.6 0.6]);
-ax.Position = p; % Display colorbar, don't move plot
-set(hc, 'Position', hc.Position.*[1 1 0.6 1]-[0.01 0 0 0]);
-xline(xlim, 'w'), yline(ylim, 'w') % Draw a box around the plot
-ax.YAxis.TickLabelFormat = 'hh:mm';
-
-% Set the custom data cursor callback function
-dcm = datacursormode(gcf);
-h.UserData = struct('A', A, 'tod_edges', tod_edges, 'day_edges', day_edges, 'ax', ax); % Store the data in the axis UserData
-set(dcm, 'UpdateFcn', @dataTip);
-end
-
-function txt = dataTip(~, event)
-% Custom data cursor function
-h = event.Target; % Get axis that triggered the event
-ud = h.UserData;  % Retrieve the UserData struct
-
-if isempty(ud)
-    txt = ''; return
-end
-
-% Get the datetime positions based on the cursor position
-[~, ~, day_i] = histcounts(num2ruler(event.Position(1), ud.ax.XAxis), ud.day_edges);
-[~, ~, tod_i] = histcounts(num2ruler(event.Position(2), ud.ax.YAxis), ud.tod_edges);
-
-% Format the data tip text
-txt = sprintf('Value: %.2f\nTime: %s\nDay: %s', ud.A(tod_i, day_i), ...
-    char(ud.tod_edges(tod_i)), char(ud.day_edges(day_i)));
-end
-
-function str = dataTip2(~, e)
-i = round(e.Position(1));
-j = round(e.Position(2));
-str = sprintf('%g\n%s\n%s', A(j, i), yLbl(j), xLbl(i));
-end
+% function txt = dataTip(~, event)
+% % Custom data cursor function
+% h = event.Target; % Get axis that triggered the event
+% ud = h.UserData;  % Retrieve the UserData struct
+% 
+% if isempty(ud)
+%     txt = ''; return
+% end
+% 
+% % Get the datetime positions based on the cursor position
+% [~, ~, day_i] = histcounts(num2ruler(event.Position(1), ud.ax.XAxis), ud.day_edges);
+% [~, ~, tod_i] = histcounts(num2ruler(event.Position(2), ud.ax.YAxis), ud.tod_edges);
+% 
+% % Format the data tip text
+% txt = sprintf('Value: %.2f\nTime: %s\nDay: %s', ud.A(tod_i, day_i), ...
+%     char(ud.tod_edges(tod_i)), char(ud.day_edges(day_i)));
+% end
 
 function plotSpread(ax, x, y, x2, y2, color)
 % Plots a region about x,y defined by x2,y2.
 x = x + seconds(0.01); % HACK to fix patch
-[X, Y] = makeStep(x, y); % Makes into teps
-[X2, Y2] = makeStep(x2, y2);
+[X, Y] = makeSteps(x, y); % Makes into teps
+[X2, Y2] = makeSteps(x2, y2);
 XX = [X(:); flipud(X2(:))]; % Ford and then reverse
 YY = [Y(:); flipud(Y2(:))];
 patch(ax, XX, YY, color, 'FaceAlpha', 0.3, 'EdgeColor', color, 'EdgeAlpha', 0.2);
 end
 
-function [X, Y] = makeStep(x, y)
+function [X, Y] = makeSteps(x, y)
 % Given x,y at start of intervals, create X,Y for the intervals
 dx = diff(x);
 if isduration(x)
@@ -797,18 +804,6 @@ switch str(1:3)
     case 'tar', c = [1.0 0.3 1.0]; cmap = flipud(rbg);
 end
 cstr = sprintf('\\\\color[rgb]{%g %g %g}', c);
-end
-
-function cmap = rbg
-cmap = [
-    0.7 1.0 0.7
-    0   1.0 0
-    0   0.1 0
-    0   0   0
-    0.1 0   0
-    1.0 0   0
-    1.0 0.7 0.7];
-cmap = interp1([-130 -65 -1 0 1 65 130], cmap, 130:-1:-130);
 end
 
 function mybar3
