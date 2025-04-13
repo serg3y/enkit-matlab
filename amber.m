@@ -1,5 +1,11 @@
 % Amber API cannot handly partial days. This wrapper does same.
 
+% Examples:
+% amber().getSites
+% amber().getData('prices', {'2024-11-01' 0}, 5);
+% amber().getData('usage', {'2024-12-23' -1}, 30);
+% amber().downloadForecastPeriodicaly
+
 % Remarks:
 % "usage" is not available for current data and possibly last day
 % "prices" includes forecasts when time span includes future periods
@@ -9,25 +15,26 @@
 % 2. show historic power usage and cost
 % 3. show current usage and cost
 
-% SA Power Network Dashbaord
-% https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard
+% Links
+% SA Power dashbaord: https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard 
 
 classdef amber
 
     properties
+        datafold = fullfile(fileparts(mfilename('fullpath')), 'amber')
         token
         siteId
         state
         nmi
         activeFrom
-        datafold = fullfile(fileparts(mfilename('fullpath')), 'amber')
     end
 
     methods
 
         function obj = amber(varargin)
+            % Class constructor
 
-            % ini settings
+            % Apply ini settings
             ini = fullfile(fileparts(mfilename('fullpath')), 'amber.ini');
             if isfile(ini)
                 txt = fileread(ini);
@@ -39,7 +46,7 @@ classdef amber
                 end
             end
 
-            % User settings
+            % Apply user settings
             for k = 1:2:nargin
                 obj.(varargin{k}) = varargin{k + 1};
             end
@@ -50,41 +57,9 @@ classdef amber
                 disp(site)
                 disp(site.channels)
                 obj.siteId = site.id;
-                fprintf(2, 'To skip this step in the future assign the "siteId" property in your "amber.ini" settings file to be the "id" value above.\n')
+                fprintf(2, 'To skip this step assign "siteId" property in "amber.ini" file to the "id" value above.\n')
                 pause(1)
             end
-
-
-            % obj.downloadForecastPeriodicaly(5)
-            % obj.getSites;
-            % obj.getData('prices', {'2024-11-01' 0}, 5);
-            % obj.getData('usage', {'2024-12-23' -1}, 30);
-            
-            return
-
-            % return
-            % Examples
-            obj.plotPrice(18, {'2025-01-01' '2025-03-20'}, "sapn_andrew", ["buy_amount" "buy_amount" "tariff_amount" "tariff_amount" "sell_amount" "sell_amount"], ["heatmap" "" "heatmap" "" "heatmap" ""])
-            obj.plotPrice(17, {'2025-01-01' '2025-03-20'}, "sapn_serge", ["buy_amount" "buy_amount" "sell_amount" "sell_amount"], ["heatmap" "" "heatmap" ""])
-            return
-            obj.plotPrice(16, {'2025-01-01' '2025-03-20'}, "sapn_andrew", ["buy_amount" "buy_amount" "sell_amount" "sell_amount"], ["heatmap" "" "heatmap" ""])
-            % return
-            obj.plotPrice(15, {'2025-01-01' '2025-03-20'}, "amber_nmi", ["buy_price" "buy_amount" "buy_price_diff" "buy_saving" "buy_saving"], ["heatmap" "heatmap" "heatmap" "heatmap" ""])
-            % return
-            obj.plotPrice(14, {'2025-01-01' '2025-03-20'}, ["buy_price"], ["heatmap" ])            
-            % obj.plotPrice(13, {'2025-01-01' '2025-03-20'}, "net_saving", "heatmap")
-            obj.plotPrice(12, {'2025-01-01' '2025-03-20'}, ["buy_saving" "sell_saving"], "heatmap")
-            obj.plotPrice(11, {'2025-01-01' '2025-03-01'}, ["buy_amount" "sell_amount"], "heatmap")
-            obj.plotPrice(10, {'2025-01-01' '2025-03-01'}, ["buy_price" "sell_price"], "heatmap")
-            obj.plotPrice(9, {'2025-01-01' '2025-03-01'}, ["buy_price_diff" "sell_price_diff"], "heatmap")
-            obj.plotPrice(8, {'2025-01-01' -1}, ["buy_price" "sell_price"], "24hr")
-            obj.plotPrice(7, {'2025-01-01' -1}, ["buy_price" "sell_price"], "24hr")
-            obj.plotPrice(6, {'2025-01-01' -1}, ["buy_price_diff" "sell_price_diff"], "24hr")
-            obj.plotPrice(5, {'2025-01-01' '2025-01-10'}, ["buy_price_diff" "sell_price_diff"])
-            obj.plotPrice(4, {'2025-01-01' '2025-01-01'}, ["buy_price_diff" "sell_price_diff"])
-            obj.plotPrice(3, {'2025-01-01' '2025-01-01'}, ["buy_price" "sell_price"], "agl")
-            obj.plotPrice(2, {'2025-01-01' '2025-01-01'}, ["buy_price" "sell_price"], ["36" "6" "18"])
-            obj.plotPrice(1, {'2025-01-01' '2025-01-01'}, "buy_price&sell_price", "5min")
         end
 
         function plotPrice(obj, fig, span, source, type, mode)
@@ -587,6 +562,8 @@ classdef amber
             if ~isempty(forecast_limit)
                 T = T(T.forecast < duration(forecast_limit, 0, 0), :);
             end
+
+            T = sortrows(T, {'start' 'query' 'forecast'}); % Sort on time fields
         end
 
         function T = readForecastFile(~, file)
@@ -796,15 +773,15 @@ switch f
 end
 end
 
-function [c, cmap, cstr] = col(str)
-str = char(str);
-switch str(1:3)
-    case 'buy', c = [1.0 0.3 0.3]; cmap = flipud(rbg);
-    case 'sel', c = [0.3 1.0 0.3]; cmap = rbg;
-    case 'tar', c = [1.0 0.3 1.0]; cmap = flipud(rbg);
-end
-cstr = sprintf('\\\\color[rgb]{%g %g %g}', c);
-end
+% function [c, cmap, cstr] = col(str)
+% str = char(str);
+% switch str(1:3)
+%     case 'buy', c = [1.0 0.3 0.3]; cmap = flipud(rbg);
+%     case 'sel', c = [0.3 1.0 0.3]; cmap = rbg;
+%     case 'tar', c = [1.0 0.3 1.0]; cmap = flipud(rbg);
+% end
+% cstr = sprintf('\\\\color[rgb]{%g %g %g}', c);
+% end
 
 function mybar3
 clf, hold on
