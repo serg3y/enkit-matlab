@@ -50,8 +50,11 @@ switch mode
         set(groot, 'DefaultFigureNumberTitle', 'off');
         set(groot, 'DefaultFigureCreateFcn', @(h, ~) set(h, 'Name', num2str(h.Number)));
         set(groot, 'DefaultAxesFontSize', 12);
-        set(groot, 'DefaultTextFontSize', 12);
-        set(groot, 'DefaultColorbarCreateFcn', @(h, ~) set(get(h, 'Label'), 'FontSize', 10));
+        % set(groot, 'DefaultTextFontSize', 12);
+        set(groot, 'DefaultTextInterpreter', 'none');
+        set(groot, 'DefaultAxesTickLabelInterpreter', 'none');
+        % set(groot, 'DefaultLegendInterpreter', 'none');
+        set(groot, 'DefaultColorbarTickLabelInterpreter', 'none');
 
     case 'nohandy'
         set(groot, 'DefaultAxesCreateFcn', 'remove');
@@ -63,7 +66,10 @@ switch mode
         set(groot, 'DefaultFigureCreateFcn', 'remove');
         set(groot, 'DefaultAxesFontSize', 'remove');
         set(groot, 'DefaultTextFontSize', 'remove');
-        set(groot, 'DefaultColorbarCreateFcn', 'remove');
+        set(groot, 'DefaultTextInterpreter', 'remove');
+        set(groot, 'DefaultAxesTickLabelInterpreter', 'remove');
+        set(groot, 'DefaultLegendInterpreter', 'remove');
+        set(groot, 'DefaultColorbarTickLabelInterpreter', 'remove');
 
     case 'dark'
         white = [0.7 0.7 0.7];
@@ -73,8 +79,8 @@ switch mode
         set(groot, 'DefaultAxesYColor', white);
         set(groot, 'DefaultAxesZColor', white);
         set(groot, 'DefaultTextColor', white);
-        set(groot, 'DefaultAxesGridColor', white);
-        set(groot, 'DefaultAxesMinorGridColor', white);
+        set(groot, 'DefaultAxesGridColor', white*0.8);
+        set(groot, 'DefaultAxesMinorGridColor', white*0.6);
         set(groot, 'DefaultColorbarColor', white);
         set(groot, 'DefaultLegendTextColor', white);
         set(groot, 'DefaultAxesColorOrder', [

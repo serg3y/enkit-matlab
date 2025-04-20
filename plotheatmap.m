@@ -1,30 +1,64 @@
-function [h, A, xCats, yCats] = plotheatmap(T, xvar, yvar, vvar, defaultvalue)
+function [h, A, xCats, yCats] = plotheatmap(T, xvar, yvar, vvar, accumfun, fillval, alphafun)
 % Plot heatmap and activate data cursor
 % - Presumes all intervals are same size
 % - Presumes x,y are provided at the start of an interval
 
-if nargin<5 || isempty(defaultvalue)
-    defaultvalue = NaN;
+if nargin<5 || isempty(accumfun)
+    accumfun = @sum;
+end
+if nargin<6 || isempty(fillval)
+    fillval = NaN;
+end
+if nargin<7 || isempty(alphafun)
+    if any(isnumeric(T.(vvar)))
+        alphafun = @(x)double(~isnan(x));
+    else
+        alphafun = [];
+    end
 end
 
 X = T.(xvar);
 Y = T.(yvar);
 V = T.(vvar);
 
+% Accumulate
 [xCats, ~, xi] = unique(X);
 [yCats, ~, yi] = unique(Y);
+A = accumarray([yi xi], V, [numel(yCats) numel(xCats)], accumfun, fillval);
 
+% Plot
+axis tight
+if isduration(yCats)
+    axis xy
+else
+    axis ij
+end
 dx = mode(diff(xCats));
 dy = mode(diff(yCats));
-
-A = accumarray([yi xi], V, [numel(yCats) numel(xCats)], @(x)median(x, 'omitnan'), defaultvalue); % Accumulate
-
-hold on, axis tight xy
 h = imagesc([min(X) max(X)] + dx/2, [min(Y) max(Y)] + dy/2, A);
 
-alpha(h, ~isnan(A)*1);
+% Make NaNs transperant
+if ~isempty(alphafun)
+    alpha(h, alphafun(A));
+end
 
+% Draw a box
+xline(xlim, 'color', get(groot, 'DefaultAxesXColor'))
+yline(ylim, 'color', get(groot, 'DefaultAxesXColor'))
+
+% Imporve tick format
+if isduration(yCats)
+    ax = gca;
+    ax.YAxis.TickLabelFormat = 'hh:mm';
+end
+
+% Data cursor
 set(datacursormode(gcf), 'UpdateFcn', @dataTip);
+
+% Outputs
+if ~nargout
+    clear h
+end
 end
 
 function txt = dataTip(~, event)

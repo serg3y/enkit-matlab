@@ -446,19 +446,22 @@ classdef amber
                     T = T(T.type == "ActualInterval", :);
 
                     % Remove junk columns
-                    T = T(:, {'startTime' 'duration' 'perKwh' 'renewables' 'channelType'});
-
+                    T = T(:, {'startTime' 'duration' 'perKwh' 'spotPerKwh' 'renewables' 'channelType'});
+                    
                     % Use positive values for feedin
                     T.perKwh(T.channelType=="feedIn") = -T.perKwh(T.channelType=="feedIn");
 
                     % Convert channelType from rows to columns
-                    T = unstack(T, 'perKwh', 'channelType');
+                    T = unstack(T, {'perKwh' 'spotPerKwh'}, 'channelType');
+                    
+                    % There is no difference between buy & sell spot prices
+                    T(:, {'spotPerKwh_controlledLoad' 'spotPerKwh_feedIn'}) = [];
 
                     % Improve column names
-                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'general' 'feedIn'  'controlledLoad'  'Time'}, {'buy_price' 'sell_price' 'tariff_price' ''});
+                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'startTime' 'perKwh_general' 'perKwh_controlledLoad' 'perKwh_feedIn' 'spotPerKwh_general'}, {'start' 'buy_price' 'tariff_price' 'sell_price' 'spot_price'});
 
                     % Re-order columns
-                    T = movevars(T, {'buy_price' 'sell_price' 'tariff_price' 'renewables'}, 'After', 'duration');
+                    T = movevars(T, {'buy_price' 'tariff_price' 'sell_price' 'spot_price' 'renewables'}, 'After', 'duration');
 
                 case 'usage'
                     % Remove predictions
