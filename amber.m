@@ -349,7 +349,7 @@ classdef amber
 
                 % Check if cached files exist
                 json_file = dir([file '.json']);
-                parquet_file = dir([file '.parquet']);
+                % parquet_file = dir([file '.parquet']);
 
                 % Check if cached file is stale
                 if ~isempty(json_file) && ...                            % if JSON file exists, but ...
@@ -357,48 +357,48 @@ classdef amber
                         datetime(json_file.date) + 0.5/24 < datetime     % file is more then 30 min old, then
                     delete(fullfile(json_file.folder, json_file.name))   % delete the file, as it may be stale
                     json_file = [];
-                    if ~isempty(parquet_file)
-                        delete(fullfile(parquet_file.folder, parquet_file.name))
-                        parquet_file = [];
-                    end
+                    % if ~isempty(parquet_file)
+                    %     delete(fullfile(parquet_file.folder, parquet_file.name))
+                    %     parquet_file = [];
+                    % end
                 end
                 
-                if ~isempty(parquet_file)
-                    % Load cached parquet
-                    t = parquetread([file '.parquet']);
+                % if ~isempty(parquet_file)
+                %     % Load cached parquet
+                %     t = parquetread([file '.parquet']);
+                %
+                % else
+                % Load cached json
+                if ~isempty(json_file)
+                    json = fileread([file '.json']);
 
                 else
-                    % Load cached json
-                    if ~isempty(json_file)
-                        json = fileread([file '.json']);
+                    % Download
+                    url_span = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd')); % Time span component
+                    url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span '&resolution=' num2str(rez)]; % REST URL query
+                    [err, json] = obj.geturl(url); % Download
 
-                    else
-                        % Download
-                        url_span = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd')); % Time span component
-                        url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span '&resolution=' num2str(rez)]; % REST URL query
-                        [err, json] = obj.geturl(url); % Download
-
-                        % Skip on error
-                        if err
-                            fprintf(2, 'Error: %s\n', json)
-                            continue
-                        end
-
-                        % Write json to file, even if its empty
-                        filewrite([file '.json'], json)
-                    end
-        
-                    % Skip if no data
-                    if numel(json) <= 2
-                        fprintf('  %s - no data\n', day)
+                    % Skip on error
+                    if err
+                        fprintf(2, 'Error: %s\n', json)
                         continue
                     end
 
-                    % Convert json to a table
-                    t = obj.readDataFile(type, [file '.json']);
-                    parquetwrite([file '.parquet'], t); % Save as parquete file
-
+                    % Write json to file, even if its empty
+                    % filewrite([file '.json'], json)
                 end
+
+                % Skip if no data
+                if numel(json) <= 2
+                    fprintf('  %s - no data\n', day)
+                    continue
+                end
+
+                % Convert json to a table
+                t = obj.readDataFile(type, [file '.json']);
+                % parquetwrite([file '.parquet'], t); % Save as parquete file
+
+                % end
                 T = [T; t]; %#ok<AGROW>
             end
         end
@@ -537,27 +537,27 @@ classdef amber
             T = [];
             for day = checkdate(span{1}) : checkdate(span{2})
 
-                parquet = fullfile(obj.datafold, sprintf('%s_forecast_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
-                if isfile(parquet)
-                    t = parquetread(parquet);
-                else
-                    % Read files on time (approx)
-                    files = all_files(all_times >= day - 1 & all_times <= day + 1.1);
-                    files = fullfile({files.folder}, {files.name});
-                    t = cellfun(@obj.readForecastFile, files, 'UniformOutput', false);
-                    t = vertcat(t{:});
+                % parquet = fullfile(obj.datafold, sprintf('%s_forecast_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
+                % if use_parquet_files && isfile(parquet)
+                %     t = parquetread(parquet);
+                % else
+                % Read files on time (approx)
+                files = all_files(all_times >= day - 1 & all_times <= day + 1.1);
+                files = fullfile({files.folder}, {files.name});
+                t = cellfun(@obj.readForecastFile, files, 'UniformOutput', false);
+                t = vertcat(t{:});
 
-                    % Remove duplicates
-                    if ~isempty(t)
-                        t.forecast = max(t.forecast, duration(0, -rez, 0)); % Treat all historic data equaly
-                        t = unique(t, 'rows');
+                % Remove duplicates
+                if ~isempty(t)
+                    t.forecast = max(t.forecast, duration(0, -rez, 0)); % Treat all historic data equaly
+                    t = unique(t, 'rows');
 
-                        % Filter data on time
-                        day.TimeZone = t.start.TimeZone;
-                        t = t(t.start >= day & t.start < day + 1, :);
-                        parquetwrite(parquet, t); % Save cache
-                    end
+                    % Filter data on time
+                    day.TimeZone = t.start.TimeZone;
+                    t = t(t.start >= day & t.start < day + 1, :);
+                    % parquetwrite(parquet, t); % Save cache
                 end
+                % end
                 T = [T; t];
             end
             T.forecast.Format = 'hh:mm';

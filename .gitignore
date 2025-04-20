@@ -15,3 +15,5 @@ amber.ini
 
 # Ignore temp folder
 /temp
+/old
+/posts
