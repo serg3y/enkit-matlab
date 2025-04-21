@@ -385,7 +385,7 @@ classdef amber
                     end
 
                     % Write json to file, even if its empty
-                    % filewrite([file '.json'], json)
+                    filewrite([file '.json'], json)
                 end
 
                 % Skip if no data
@@ -500,8 +500,10 @@ classdef amber
                 next_local = dateshift(now_local, 'start', 'minute') + offset; % Wait 1-2 min past the mark, to ensure prices are updated and polling is randomised
                 fprintf(' Next download: %s\n', next_local) % Progress
                 pause(seconds(next_local - now_local))
-                obj.downloadForecastOnce([48 48], 30); % Download 24 hr @ 30 min
-                obj.downloadForecastOnce([12 12],  5); % Download 1 hr @ 5 min (optional)
+                try
+                    obj.downloadForecastOnce([48 48], 30); % Download 24 hr @ 30 min
+                    obj.downloadForecastOnce([12 12],  5); % Download 1 hr @ 5 min (optional)
+                end
             end
         end
 
