@@ -14,9 +14,9 @@ import datetime
 import subprocess
 
 txt = open('amber.ini').read()
-state  = re.search(r'state\s*=\s*(\S+)', txt).group(1)
+state  = re.search(r'state\s*=\s*(\S+)',  txt).group(1)
 siteId = re.search(r'siteId\s*=\s*(\S+)', txt).group(1)
-token  = re.search(r'token\s*=\s*(\S+)', txt).group(1)
+token  = re.search(r'token\s*=\s*(\S+)',  txt).group(1)
 
 period = 5  # Delay between downloads (min)
 rand_delay = datetime.timedelta(seconds=random.uniform(0, 15))  # random delay, 0-15 sec
@@ -24,7 +24,7 @@ rand_delay = datetime.timedelta(seconds=random.uniform(0, 15))  # random delay, 
 def download_amber_forecast_once(state, siteId, token, span, rez):
     # Download current Amber price forecast.
 
-    fold = os.path.join('forecast', f'{state}_{rez}min', 'json')
+    fold = os.path.join('forecast', f'forecast_{state}_{rez}min', 'json')
     os.makedirs(fold, exist_ok=True)
 
     # Download
