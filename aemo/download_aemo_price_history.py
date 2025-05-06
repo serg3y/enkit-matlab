@@ -1,4 +1,5 @@
 # Download AEMO historic electricity prices
+# https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
 # https://aemo.com.au/aemo/data/nem/priceanddemand
 
 import os
@@ -11,7 +12,7 @@ states = ["NSW", "QLD", "VIC", "SA", "TAS"]
 now = datetime.now()
 
 for state in states:
-    for year in range(2010, 2030):
+    for year in range(2000, 2030):
         for month in range(1, 13):
             if datetime(year, month, 1) < now:
 
