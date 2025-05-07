@@ -1,19 +1,15 @@
-# Ignore Amber data (personal or large)
-/amber/*_usage_*
-/amber/sa_forecast_5min/raw
-/amber/sa_forecast_30min/raw
+*.json
+*.csv
+*.parquet
+*.png
+*.lnk
+*.sx2
+*.ini
+!*_example.ini
 
-# Ignore SA Power Network (personal)
-/sapn/*
-!/sapn/sapn manual data download instructions.txt
+bills
+temp
+old
 
-# Ignore electricity bills (personal)
-/bills
 
-# Ignore settings files (personal)
-amber.ini
 
-# Ignore temp folder
-/temp
-/old
-/posts
