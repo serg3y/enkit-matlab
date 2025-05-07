@@ -1,6 +1,6 @@
 # Periodically downloads Amber price forecasts.
 # - Downloads 24 hrs @ 30 min and 1 hr @ 5 min, every 5 minutes.
-# - Delay download by 30–45 sec, after the 5 minute mark, to ensure
+# - Delay download by 30-45 sec, after the 5 minute mark, to ensure
 #     prices update and to be nice to server. 
 # - File name is NEM time (+1000) at start of download, e.g.
 #     forecast/sa_30min/json/20250403_013132.json
