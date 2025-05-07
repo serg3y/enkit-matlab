@@ -1,14 +1,26 @@
+% Class to download and read Australian Energy Market Operator (AEMO) data.
+%
+% Remarks:
+% - RRP is the wholesale spot price is $/MWh (exGST)
+% - RRP is converted to spot price, for convinience, in c/kWh (incGST):
+%   spot = RRP / 10 * 1.1
+% - time is the start time of the each interval
+% - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
+% - See tariffs.m to calculate final consumer prices.
+%
 % Example: 
-% T = aemo(download=1/24).getPrice('SA', {'2024-07-01' '2025-06-01'}, 30)
+%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'})
+%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'}, 30) % downsample
 %
 % Source:
-% https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
-% eg https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_202501_SA1.csv
+%   https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
+%
+% See also: tariffs, README.txt
 
 classdef aemo
 
     properties
-        datafold = fileparts(mfilename('fullpath'))
+        datafold = fullfile(fileparts(mfilename('fullpath')), 'data')
         download = 12/24 % Both a flag to say if downloads are allowed and a threshold to say when a an incomplete file is deemed to be 'stale' (day fraction)
     end
 
@@ -80,6 +92,7 @@ classdef aemo
             % Get one month of AEMO price (and demand) data.
 
             assert(ismember(region, ["NSW" "QLD" "VIC" "SA" "TAS"]), 'Invalid region, use: "NSW" "QLD" "VIC" "SA" "TAS"')
+            region = lower(region);
             
             T = []; % Init
             file = sprintf('PRICE_AND_DEMAND_%s_%s1.csv', string(month, 'yyyyMM'), region);
@@ -92,8 +105,8 @@ classdef aemo
 
             % Download if file is missing or stale
             if obj.download && (~isfile(path) || ~isComplete(path) && isOld(path, obj.download))
-                if ~isfolder(region)
-                    mkdir(region)
+                if ~isfolder(fileparts(path))
+                    mkdir(fileparts(path))
                 end
                 url = ['https://aemo.com.au/aemo/data/nem/priceanddemand/' file];
                 cmd = sprintf('curl -sS "%s" > "%s"', url, path);
@@ -114,9 +127,9 @@ end
 
 function tf = isComplete(file)
 fid = fopen(file, 'r');
-fseek(fid, -100, 'eof'); % Go to 100 bytes before end of file
-txt = fread(fid, 100, '*char')';
-tf = contains(txt, '01 00:00:00');
+fseek(fid, -100, 'eof'); % Read last 100 bytes in file
+txt = fread(fid, Inf, '*char')';
+tf = contains(txt, '01 00:00:00'); % File should end at start of next month
 fclose(fid);
 end
 

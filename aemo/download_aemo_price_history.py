@@ -17,7 +17,7 @@ for state in states:
             if datetime(year, month, 1) < now:
 
                 # Set folder and filename
-                folder = Path(state)
+                folder = Path("data", state)
                 filename = f"PRICE_AND_DEMAND_{year}{month:02d}_{state}1.csv"
                 filepath = folder / filename
 

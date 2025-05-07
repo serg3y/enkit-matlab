@@ -9,7 +9,7 @@ Columns:
 
 Remarks:
  - To compute spot price in cents/kWh (incGST), use the following:
-     spot = (RRP/10)*1.1
+   spot =  RRP / 10 * 1.1
  - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
 
 Example data:
