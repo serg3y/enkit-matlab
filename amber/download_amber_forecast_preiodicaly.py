@@ -18,7 +18,7 @@ rand_delay = datetime.timedelta(seconds=random.uniform(0, 15))  # random delay, 
 def download_amber_forecast_once(state, siteId, token, span, rez):
 
     # Prepare folder and filename
-    fold = os.path.join('data', 'forecast', f'forecast_{state}_{rez}min', 'json')
+    fold = os.path.join('data', f'forecast_{state}_{rez}min', 'json')
     os.makedirs(fold, exist_ok=True)
     dt = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=10)))
     dt = dt.replace(minute=dt.minute - dt.minute % 5, second=0, microsecond=0)  # Round to nearest 5 min
