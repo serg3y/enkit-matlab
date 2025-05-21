@@ -7,7 +7,7 @@
 % 3.Set x_field for x-axis to: 'start' or 'query'
 
 % Load data
-T = amber().getForecastData({'2025-04-03' '2025-04-10'}, 30, 24);
+T = amber().readForecastData({'2025-04-03' '2025-04-10'}, 30, 24);
 T = T(T.forecast<0, :);
 [~, i] = unique(T(:, {'start' 'forecast'}), 'rows');
 i = intersect(i,find( T.forecast < 0));
@@ -22,7 +22,7 @@ plot(T.start, T.buy_price)
 
 %%
 file = amber().downloadForecastOnce([48 0], 30);
-T = amber().getForecastData({-1 1}, 30, 24);
+T = amber().readForecastData({-1 1}, 30, 24);
 fig(1, 'dark', 'handy')
 T.start.TimeZone = "Australia/Adelaide";
 plot(T.start, T.buy_price)

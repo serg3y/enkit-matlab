@@ -13,8 +13,8 @@
 %% Load data
 value_field = ["spot_price" "general_price" "feedIn_price"] % ["general_price" "feedIn_price" "spot_price"];
 time_field = 'start'; % 'start' or 'query'
-T = amber().getForecastData({'2025-04-14' '2025-05-14'}, 30, 24);
-% T = amber().getForecastData({'2025-04-03' '2025-04-10'}, 5, 0.51); % 5 min data
+T = amber().readForecastData({'2025-04-14' '2025-05-14'}, 30, 24);
+% T = amber().readForecastData({'2025-04-03' '2025-04-10'}, 5, 0.51); % 5 min data
 
 % Limit forecast period
 T(T.forecast>16/24,:) = [];

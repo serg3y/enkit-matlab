@@ -3,12 +3,12 @@
 # - Delay download by 30-45 sec, after the 5 minute mark, to ensure
 #     prices update and to be nice to server. 
 # - File name is NEM time (+1000) at start of download, e.g.
-#     forecast/sa_30min/json/20250403_013132.json
+#     data/forecast_sa_30min/json/20250403_013132.json
 
 import os, re, sys, time, random, datetime, subprocess
 
-dir = os.path.dirname(os.path.abspath(__file__))
-txt = open(os.path.join(dir, 'amber.ini')).read()
+data_fold = os.path.dirname(os.path.abspath(__file__))
+txt = open(os.path.join(data_fold, 'amber.ini')).read()
 state  = re.search(r'state\s*=\s*(\S+)',  txt).group(1)
 siteId = re.search(r'siteId\s*=\s*(\S+)', txt).group(1)
 token  = re.search(r'token\s*=\s*(\S+)',  txt).group(1)
@@ -18,11 +18,11 @@ rand_delay = datetime.timedelta(seconds=random.uniform(0, 15))  # random delay, 
 def download_amber_forecast_once(state, siteId, token, span, rez):
 
     # Prepare folder and filename
-    fold = os.path.join('data', f'forecast_{state}_{rez}min', 'json')
-    os.makedirs(fold, exist_ok=True)
+    out_fold = os.path.join('data', f'forecast_{state}_{rez}min', 'json')
+    os.makedirs(out_fold, exist_ok=True)
     dt = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=10)))
     dt = dt.replace(minute=dt.minute - dt.minute % 5, second=0, microsecond=0)  # Round to nearest 5 min
-    file = os.path.join(fold, dt.strftime('%Y%m%d_%H%M') + '.json')
+    file = os.path.join(out_fold, dt.strftime('%Y%m%d_%H%M') + '.json')
 
     # Build and run curl command
     url = f'https://api.amber.com.au/v1/sites/{siteId}/prices/current?previous={span[0]}&next={span[1]}&resolution={rez}'

@@ -26,7 +26,3 @@ Links:
   https://www.sapowernetworks.com.au/your-power/billing/pricing-tariffs/
   https://www.sapowernetworks.com.au/your-power/billing/pricing-tariffs/electricity-tariffs/
   https://www.sapowernetworks.com.au/public/download.jsp?id=9508
-
-GitHub: https://github.com/serg3y/enkit-matlab.git
-Data:   https://drive.google.com/drive/folders/1fobuTq48HuNrJfxVP7vktMzlQpmiFelO?usp=sharing
-Email:  s3rg3y at hotmail dot com

@@ -2,8 +2,8 @@
 % - Downloads 24 hrs @ 30 min and 1 hr @ 5 min, every 5 minutes.
 % - Delay download by 30-45 sec, after the 5 minute mark, to ensure
 %     prices update and to be nice to server. 
-% - File name is NEM time (+1000) at start of download, eg
-%     forecast\sa_30min\json\20250403_013132.json
+% - File name is NEM time (+1000) at start of download, e.g.
+%     data/forecast_sa_30min/json/20250403_013132.json
 
 txt = fileread('amber.ini');
 state  = regexp(txt, '(?<=state\s*=\s*)\S+',  'match', 'once');
@@ -34,13 +34,13 @@ end
 function file = download_amber_forecast_once(state, siteId, token, span, rez)
 
 % Prepare folder and filename
-fold = fullfile(fileparts(mfilename('fullpath')), 'forecast', sprintf('%s_%s_%gmin', 'forecast', state, rez), 'json');
-if ~isfolder(fold)
-    mkdir(fold);
+out_fold = fullfile(fileparts(mfilename('fullpath')), 'data', sprintf('%s_%s_%gmin', 'forecast', state, rez), 'json');
+if ~isfolder(out_fold)
+    mkdir(out_fold);
 end
 start_time = datetime('now', 'TimeZone', '+1000'); % NEM time, derived from system time
 start_time = dateshift(start_time, 'start', 'minute') - minutes(mod(minute(start_time), 45)); % Round down to nearest 5 min
-file = fullfile(fold, [char(start_time, 'yyyyMMdd_HHmm') '.json']);
+file = fullfile(out_fold, [char(start_time, 'yyyyMMdd_HHmm') '.json']);
 
 % Build and run curl command
 url = sprintf('https://api.amber.com.au/v1/sites/%s/prices/current?previous=%g&next=%g&resolution=%g', siteId, span, rez);
