@@ -41,6 +41,6 @@ while True:
     # Initiate downloads
     try:
         download_amber_forecast_once(state, siteId, token, [48, 48], 30)  # Download ±24 hr @ 30 min
-        download_amber_forecast_once(state, siteId, token, [12, 12], 5)   # Download ±1 hr @ 5 min
+        download_amber_forecast_once(state, siteId, token, [12, 144], 5)   # Download ±1 hr @ 5 min
     except Exception as ex:
         print(ex, file=sys.stderr)  # Print errors to screen

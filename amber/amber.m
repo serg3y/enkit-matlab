@@ -479,13 +479,27 @@ classdef amber
                 forecast_limit = [];
             end
 
-            all_files = dir(fullfile(obj.datafold, sprintf('%s_forecast_%gmin', obj.state, rez), 'raw', '*.json'));
-            all_times = datetime(extractBetween({all_files.name}, 1, 15), 'InputFormat', 'yyyyMMdd_HHmmss');
+            % List all data files
+            filt = fullfile(obj.datafold, 'data', sprintf('forecast_%s_%gmin', obj.state, rez), 'json', '*.json');
+            all_files = dir(filt);
+            assert(~isempty(all_files), 'No data files matching "%s"', filt)
+            
+            % Extract time from filename
+            all_times = datetime(extractBetween({all_files.name}, 1, 13), 'InputFormat', 'yyyyMMdd_HHmm');
 
             T = [];
             for day = checkdate(span{1}) : checkdate(span{2})
 
-                parquet = fullfile(obj.datafold, sprintf('%s_forecast_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
+                parquet = fullfile(obj.datafold, 'data', sprintf('forecast_%s_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
+
+                if isfile(parquet)
+                    t = datetime(dir(parquet).date);
+                    if t + days(2) > span{2} && t + minutes(4) < datetime
+                        fprintf(' Deleteing %s\n', parquet)
+                        delete(parquet)
+                    end
+                end
+
                 if isfile(parquet)
                     t = parquetread(parquet);
                 else
@@ -508,8 +522,18 @@ classdef amber
                 end
                 T = [T; t];
             end
+
+            if isempty(T)
+                return
+            end
+            
             T.forecast.Format = 'hh:mm';
             
+            % Filter on time span
+            time_zone = T.start.TimeZone;
+            T = T(T.start >= checkdate(span{1}, time_zone) & T.start < checkdate(span{2}, time_zone), :);
+
+            % Filter on forecast duration
             if ~isempty(forecast_limit)
                 T = T(T.forecast < duration(forecast_limit, 0, 0), :);
             end
@@ -519,7 +543,20 @@ classdef amber
 
         function T = readForecastFile(~, file)
             % Convert JSON to a table
-            data = jsondecode(fileread(file));
+            
+            % Read file
+            data = fileread(file);
+
+            % Check
+            if isequal(data, '{"message": "Internal server error"}')
+                movefile(file, [file '.error'])
+                T = [];
+                return
+            end
+
+            % Decode
+            data = jsondecode(data);
+
             fields = {'type' 'startTime' 'perKwh' 'renewables' 'spotPerKwh' 'channelType' 'low' 'med' 'high'}; % Required fields
             C = repmat({nan}, numel(data), numel(fields)); % Initialize cell array
             for i = 1:numel(data)
@@ -546,7 +583,7 @@ classdef amber
 
             % Compute query time
             [~, f] = fileparts(file);
-            t = datetime(f, 'InputFormat', 'yyyyMMdd_HHmmss');
+            t = datetime(f, 'InputFormat', 'yyyyMMdd_HHmm');
             offset = minutes(mod(minute(t) -  mod(minute(t), 5), 30)); % Round down to nearest 5 minutes
             T = addvars(T, T.startTime + offset, 'After', 'startTime', 'NewVariableNames', 'query');
 

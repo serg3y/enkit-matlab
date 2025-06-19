@@ -43,7 +43,7 @@ A = accumarray([yi xi], V, [numel(yVec) numel(xVec)], accumfun, fillval);
 h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, A);
 
 % Tweak appearance
-axis tight ij
+axis tight
 if isduration(Y)
     ax = gca;
     ax.YAxis.TickLabelFormat = 'hh:mm'; % Imporve tick format
