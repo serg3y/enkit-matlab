@@ -1,6 +1,6 @@
 function h = plotspread2(ax, x, y1, y2, color, name, varargin)
 % Plots a region defined by x,y1,y2.
-%  plotSpread(ax, x, y1, y2, color, name, varargin)
+%  plotdpread2(ax, x, y1, y2, color, name, varargin)
 
 if nargin < 4 || isempty(y2), y2 = y1*0; end
 if nargin < 5 || isempty(color)
@@ -20,5 +20,9 @@ YY = [Y1(:); flipud(Y2(:))];
 name = sprintf('\\color[rgb]{%g %g %g}%s', color, name);
 
 h = patch(ax, XX, YY, color, 'EdgeColor', color, 'DisplayName', name, 'FaceAlpha', 0.3, 'EdgeAlpha', 0.2, varargin{:});
+
+if ~nargout
+    clear h
+end
 
 end
