@@ -1,4 +1,6 @@
-T = aemo().getPrice("SA", {'2024-07-01' '2025-05-01'}, 5, {'time' 'spot'});
+span = {'2024-07-01' '2025-06-19'};
+
+T = aemo().getPrice("SA", span, 5, {'time' 'spot'});
 [T.tod, T.date] = timeofday2(T.time);
 g = groupsummary(T, 'tod', @mean, 'spot');
 x = g.tod;
@@ -15,7 +17,7 @@ xlim(duration([0 24], 0, 0))
 set(gca, 'XTick', duration(0:4:24, 0, 0))
 ylabel 'c/kWh'
 xlabel 'NEM Time (+10:00)'
-title 'SA Tariffs and Other Fees (2024-07-01 to 2025-05-01)'
+title("SA Tariffs and Other Fees (" + span{1} + " to "+ span{1} + ")")
 legend show location NW
 
 subplot(2,1,2)
@@ -27,11 +29,12 @@ xlim(duration([0 24], 0, 0))
 set(gca, 'XTick', duration(0:4:24, 0, 0))
 ylabel 'c/kWh'
 xlabel 'NEM Time (+10:00)'
-title 'SA Avg. Electricity Price (2024-07-01 to 2025-05-01)'
+title("SA Avg. Electricity Price (" + span{1} + " to "+ span{1} + ")")
 legend show location NW
 
 linkallaxes
-figsave(gcf, 'plot_sa_average_price.png', [800 600])
+figsave(gcf, 'plots\sa_average_price.png', [800 600])
+% figsave(gcf, ':\s3rg3y\Share\enkit\plots\sa_average_price.png', [800 600])
 
 %%
-!robocopy "D:\MATLAB\enkit\aemo" "D:\s3rg3y\Share\enkit\aemo" *.csv *.txt *.py *.png /S /DCOPY:T /S /NDL /NS /NC /NJH /NJS /NP
+%!robocopy "D:\MATLAB\enkit\aemo" "D:\s3rg3y\Share\enkit\aemo" *.csv *.txt *.py *.png /S /DCOPY:T /S /NDL /NS /NC /NJH /NJS /NP
