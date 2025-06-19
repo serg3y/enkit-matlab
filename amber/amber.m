@@ -21,7 +21,7 @@
 classdef amber
 
     properties
-        datafold = fileparts(mfilename('fullpath'))
+        datafold = fullfile(fileparts(mfilename('fullpath')), 'data')
         token
         siteId
         state
@@ -296,8 +296,8 @@ classdef amber
 
                 % Set output file path (no extension)
                 switch type
-                    case 'usage',  file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', obj.nmi,   type, rez), char(day, 'yyyyMMdd'));
-                    case 'prices', file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', obj.state, type, rez), char(day, 'yyyyMMdd'));
+                    case 'usage',  file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', type, obj.nmi,   rez), char(day, 'yyyyMMdd'));
+                    case 'prices', file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', type, obj.state, rez), char(day, 'yyyyMMdd'));
                 end
                 if ~isfolder(fileparts(file))
                     mkdir(fileparts(file));
@@ -339,7 +339,6 @@ classdef amber
                     fprintf('  %s - no data\n', day)
                     continue
                 end
-
 
                 % Convert json to a table
                 t = obj.readDataFile(type, [file '.json']);
@@ -601,7 +600,7 @@ classdef amber
         end
 
         function [err, msg] = geturl(obj, url)
-            % Delay to avoid friquent downloads
+            % Delay to avoid "Error: Too many requests"
             persistent time_of_last_download
             delay_between_downloads = 5; % (sec)
             if isempty(time_of_last_download)
