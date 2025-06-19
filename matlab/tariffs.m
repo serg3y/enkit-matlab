@@ -5,7 +5,7 @@ function T = tariffs(tariff, time, spot)
 %   price   = tariffs(tariff, time, spot)  - final consumer price
 %
 % Remarks:
-% - Tariff and fees (T&F) were derived by analysing Amber price history
+% - Tariff and fees were derived by analysing Amber price history
 %   eg, RTOU tnf = 25.56422(peak), 13.21122(offpeak), 9.08622(day) (c/kWh)
 % - They can also be calculated (mostly) using SAPN's "Tariff Price List":
 %   https://www.sapowernetworks.com.au/public/download.jsp?id=328119
