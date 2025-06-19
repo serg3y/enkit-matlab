@@ -9,8 +9,8 @@
 % - See tariffs.m to calculate final consumer prices.
 %
 % Example: 
-%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'})
-%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'}, 30) % downsample
+%   T = aemo().getPrice('SA', {'2024-07-01' 0})
+%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'}, 5) % downsample
 %
 % Source:
 %   https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
