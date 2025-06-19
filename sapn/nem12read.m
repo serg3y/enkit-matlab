@@ -1,5 +1,5 @@
 function T = nem12read(files, names, rez, timezone, timezone2)
-% Read NEM12 data files and output data as a table.
+% Read SA Power Networks NEM12 data file(s) into a table.
 %   T = nem12read(files)
 %
 % Remarks:
@@ -8,7 +8,9 @@ function T = nem12read(files, names, rez, timezone, timezone2)
 %   https://customer.portal.sapowernetworks.com.au/meterdata
 %
 % Example:
-%   T = nem12read('sample.csv')
+%   cd D:\MATLAB\enkit\sapn\serge   
+%   T = nem12read('*.csv')
+%   writetable(T, 'fixed.txt')
 %
 % See also:
 %   https://www.energyaustralia.com.au/resources/PDFs/User%20Guide_v3.pdf
@@ -17,7 +19,7 @@ function T = nem12read(files, names, rez, timezone, timezone2)
 
 % Defaults
 if nargin<2 || isempty(names)
-    names = ["sell_amount" "buy_amount" "tariff_amount"];
+    names = ["sell_amount" "buy_amount" "controlled_amount"]; % Name each field
 end
 if nargin<3, rez = []; end
 if nargin<4, timezone = []; end
@@ -29,7 +31,6 @@ if isfolder(files)
 end
 list = dir(files); % Single file or wildcard
 list = fullfile({list.folder}, {list.name});
-list = list(~endsWith(list, '.fixed.csv')); % Skip processed files
 
 % Read files
 T = cellfun(@(x)nem12read_i(x, names), list, 'UniformOutput', false);
@@ -44,10 +45,15 @@ end
 
 % Resample
 if ~isempty(rez)
-    T.start = T.start - minutes(mod(minute(T.start), rez));
+    % Floor to nearest rez-minute mark
+    T.start = dateshift(T.start, 'start', 'minute') - minutes(mod(minute(T.start), rez));
+
+    % Group
     T = groupsummary(T, 'start', @sum, names);
+
+    % Clean up
     T = renamevars(T, T.Properties.VariableNames, strrep(T.Properties.VariableNames, 'fun1_', ''));
-    T.GroupCount = [];
+    T = removevars(T, 'GroupCount');
 end
 
 % Assign time zone
@@ -63,13 +69,6 @@ end
 
 function [T, blocks] = nem12read_i(file, names)
 % Read a single NEM12 file
-
-% Read parquet if it exists
-parquet = strrep(file, '.csv', '.parquet');
-if isfile(parquet)
-    T = parquetread(parquet);
-    return
-end
 
 % Read file contents
 txt = fileread(file);
@@ -94,12 +93,6 @@ T = unstack(T, 'kwh', 'channel');
 
 % Assign column names
 T.Properties.VariableNames = ["start" names];
-
-% Write parquet for next time
-parquetwrite(parquet, T);
-
-% Write human readable CSV
-writetable(T, regexprep(file, '(?i).csv', '.fixed.csv'));
 end
 
 
