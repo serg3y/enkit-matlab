@@ -2,8 +2,8 @@
 
 % Examples:
 % amber().getSites
-% amber().getData('prices', {'2024-11-01' 0}, 5);
-% amber().getData('usage', {'2024-12-23' -1}, 30);
+% amber().getPrices({'2024-11-01' 0}, 5);
+% amber().getUsage( {'2024-12-23' -1}, 30);
 % amber().downloadForecastPeriodicaly
 
 % Remarks:
@@ -26,7 +26,6 @@ classdef amber
         siteId
         state
         nmi
-        activeFrom
     end
 
     methods
@@ -109,7 +108,7 @@ classdef amber
         %         X = T.start;
         %         switch type(k)
         % 
-        %             case {'buy_amount' 'sell_amount'  'tariff_amount'}
+        %             case {'buy_amount' 'sell_amount'  'buy2_amount'}
         %                 ylabel(regexprep([source; type(k)], {'_' 'amount'}, {' ' '(kwh)'}))
         %                 X = T.start;
         %                 Y = T.(type(k));
@@ -125,7 +124,7 @@ classdef amber
         %                         legend show
         %                 end
         % 
-        %             case {'buy_price' 'sell_price' 'tariff_price'}
+        %             case {'buy_price' 'sell_price' 'buy2_price'}
         %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' '(kwh)'}))
         %                 Y = T.(type(k));
         %                 c = col(type(k));
@@ -280,15 +279,93 @@ classdef amber
             end
         end
 
+        function T = getUsage(obj, span)
+            T = getData(obj, 'usage', span);
+        end
+        function T = getPrices(obj, span, varargin)
+            T = getData(obj, 'prices', span, varargin{:});
+        end
         function T = getData(obj, type, span, rez)
             % Read or download prices or usage data
+            if nargin < 4, rez = []; end  % Use default 5 min resolution
 
-            if nargin<4 || isempty(rez), rez = 30; end
+            % Collect results in a cell (faster than growing a table)
+            tables = {};
 
-            % Check span
-            if ~isempty(obj.activeFrom)
-                span{1} = max(checkdate(span{1}), checkdate(obj.activeFrom));
+            for day = checkdate(span{1}) : checkdate(span{end})
+
+                % Choose identifier depending on type
+                switch type
+                    case 'usage'
+                        id = obj.nmi;
+                    case 'prices'
+                        id = obj.state;
+                    otherwise
+                        error('Unknown type: %s', type);
+                end
+
+                % Build file path (no extension)
+                file = fullfile(obj.datafold, sprintf('%s_%s', type, id), char(day, 'yyyyMMdd'));
+                if ~isfolder(fileparts(file))
+                    mkdir(fileparts(file));
+                end
+
+                % Cached file check
+                json_file = dir([file '.json']);
+                isStale = @(f, d) datetime(f.date) < d + 1 + hours(1) && datetime(f.date) + minutes(30) < datetime;
+
+                if ~isempty(json_file) && isStale(json_file, day)
+                    delete(fullfile(json_file.folder, json_file.name));
+                    json_file = [];
+                end
+
+                % Load or download JSON
+                if isempty(json_file)
+                    url_span = sprintf('startDate=%s&endDate=%s', ...
+                        char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd'));
+                    if isempty(rez)
+                        url_rez = '';
+                    else
+                        url_rez = sprintf('&resolution=%g', rez);
+                    end
+                    url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span url_rez];
+                    [err, json] = obj.geturl(url);
+
+                    if err
+                        fprintf(2, 'Error: %s\n', json);
+                        continue
+                    end
+
+                    filewrite([file '.json'], json);
+                else
+                    json = fileread([file '.json']);
+                end
+
+                % Skip if no data
+                if numel(json) <= 2
+                    fprintf('  %s - no data\n', day);
+                    continue
+                end
+
+                % Convert json to table and store
+                tables{end+1} = obj.readDataFile(type, [file '.json']);
             end
+
+            % Combine all tables
+            if isempty(tables)
+                T = table(); % return empty if nothing collected
+            else
+                T = vertcat(tables{:});
+            end
+        end
+
+
+
+
+        function T = getData_old(obj, type, span, rez)
+            % Read or download prices or usage data
+
+            if nargin < 4, rez = []; end % Use default 5 min resolution
 
             % Step through days
             T = []; % Large table to hold all data
@@ -296,8 +373,8 @@ classdef amber
 
                 % Set output file path (no extension)
                 switch type
-                    case 'usage',  file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', type, obj.nmi,   rez), char(day, 'yyyyMMdd'));
-                    case 'prices', file = fullfile(obj.datafold, sprintf('%s_%s_%gmin', type, obj.state, rez), char(day, 'yyyyMMdd'));
+                    case 'usage',  file = fullfile(obj.datafold, sprintf('%s_%s', type, obj.nmi  ), char(day, 'yyyyMMdd'));
+                    case 'prices', file = fullfile(obj.datafold, sprintf('%s_%s', type, obj.state), char(day, 'yyyyMMdd'));
                 end
                 if ~isfolder(fileparts(file))
                     mkdir(fileparts(file));
@@ -321,7 +398,12 @@ classdef amber
                 else
                     % Download
                     url_span = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd')); % Time span component
-                    url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span '&resolution=' num2str(rez)]; % REST URL query
+                    if ~isempty(rez)
+                        url_rez = sprintf('&resolution=%g', rez);
+                    else
+                        url_rez = '';
+                    end
+                    url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span url_rez]; % REST URL query
                     [err, json] = obj.geturl(url); % Download
 
                     % Skip on error
@@ -399,13 +481,18 @@ classdef amber
                     T = unstack(T, {'perKwh' 'spotPerKwh'}, 'channelType');
                     
                     % There is no difference between buy & sell spot prices
-                    T(:, {'spotPerKwh_controlledLoad' 'spotPerKwh_feedIn'}) = [];
+                    T(:, {'spotPerKwh_controlledLoad'}) = [];
+                    try
+                        T(:, {'spotPerKwh_feedIn'}) = []; %HACK for edge case with missing columns on 2024-11-29
+                    catch
+                        T.sell_price = zeros(size(T,1), 1); %HACK
+                    end
 
                     % Improve column names
-                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'startTime' 'perKwh_general' 'perKwh_controlledLoad' 'perKwh_feedIn' 'spotPerKwh_general'}, {'start' 'buy_price' 'tariff_price' 'sell_price' 'spot_price'});
+                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'startTime' 'perKwh_general' 'perKwh_controlledLoad' 'perKwh_feedIn' 'spotPerKwh_general'}, {'start' 'buy_price' 'buy2_price' 'sell_price' 'spot_price'});
 
                     % Re-order columns
-                    T = movevars(T, {'buy_price' 'tariff_price' 'sell_price' 'spot_price' 'renewables'}, 'After', 'duration');
+                    T = movevars(T, {'buy_price' 'buy2_price' 'sell_price' 'spot_price' 'renewables'}, 'After', 'duration');
 
                 case 'usage'
                     % Remove predictions
@@ -421,10 +508,10 @@ classdef amber
                     T = unstack(T, {'kwh' 'perKwh'}, 'channelType');
 
                     % Improve column names
-                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'(.*)_(.*)' 'general' 'feedIn' 'controlledLoad' '_perKwh' 'kwh' 'Time'}, {'$2_$1' 'buy' 'sell' 'tariff' '_price' 'amount' ''});
+                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'(.*)_(.*)' 'general' 'feedIn' 'controlledLoad' '_perKwh' 'kwh' 'Time'}, {'$2_$1' 'buy' 'sell' 'buy2' '_price' 'amount' ''});
 
                     % Re-order columns
-                    T = movevars(T, {'buy_amount' 'buy_price' 'sell_amount' 'sell_price' 'tariff_amount' 'tariff_price'}, 'After', 'duration');
+                    T = movevars(T, {'buy_amount' 'buy_price' 'sell_amount' 'sell_price' 'buy2_amount' 'buy2_price'}, 'After', 'duration');
             end
         end
 
@@ -602,7 +689,7 @@ classdef amber
         function [err, msg] = geturl(obj, url)
             % Delay to avoid "Error: Too many requests"
             persistent time_of_last_download
-            delay_between_downloads = 5; % (sec)
+            delay_between_downloads = 10; % (sec)
             if isempty(time_of_last_download)
                 time_of_last_download = NaT;
             end

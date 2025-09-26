@@ -8,9 +8,9 @@ value = ["spot" "TOTALDEMAND"];
 % Plot
 fig(1, 'dark', 'handy')
 for k = 1:numel(state)
-    T = aemo().getPrice(state{k} , span, rez, {'time' 'spot' 'TOTALDEMAND'});
+    T = aemo().getPrice(state{k} , span, rez, {'start' 'spot' 'TOTALDEMAND'});
     for j = 1:numel(value)
-        [T.tod, T.date] = timeofday2(T.time);
+        [T.tod, T.date] = timeofday2(T.start);
         axis_stack(k, numel(state), j, numel(value))
         plotheatmap(T.date, T.tod, T.(value{j}))
         ylabel(state{k})

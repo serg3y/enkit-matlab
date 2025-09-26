@@ -5,11 +5,11 @@
 % 4.55 is hedging (1.5c) + carbon offset (0.22c) + market charges (0.47c) + certificates (2.36c)
 % Each July 4.55c and tariff will change.
 
-% T = amber().getData('prices', span, rez);
+% T = amber().getPrices(span, rez);
 % T.start.TimeZone = timezone;
 % 
 % figure(3),clf
-% T.RTOU2 = (T.spot_price + calctariff(T.start, 'RTOU2'))*1.1105195 + 4.760668;
+% T.RTOU2 = (T.spot_price + tariffs(T.start, 'RTOU2'))*1.1105195 + 4.760668;
 % plot(T.buy_price, T.buy_price-T.RTOU2,'.')
 % R = corrcoef(T.RTOU2, T.buy_price);
 % R(1, 2)
@@ -17,7 +17,7 @@
 % sqrt(mean((T.RTOU2- T.buy_price).^2))
 % 
 % figure(4), clf
-% T.RTOU = (T.spot_price + calctariff(T.start, 'RTOU'))*1.2 + 5.551;
+% T.RTOU = (T.spot_price + tariffs(T.start, 'RTOU'))*1.2 + 5.551;
 % plot(T.buy_price, T.buy_price-T.RTOU,'.')
 % R = corrcoef(T.RTOU, T.buy_price);
 % R(1, 2)
@@ -35,10 +35,10 @@ value = 'buy_price'; fig(1, 'dark', 'handy')
 timezone = 'Australia/Adelaide';
 
 %% Load data
-T = amber().getData('prices', span, rez);
+T = amber().getPrices(span, rez);
 T.start.TimeZone = timezone;
 
-T.RTOU2 = (T.spot_price + calctariff(T.start, 'RTOU2'))*1.1105195 + 4.760668;
+T.RTOU2 = (T.spot_price + tariffs(T.start, 'RTOU2'))*1.1105195 + 4.760668;
 
 T.value = T.(value);
 

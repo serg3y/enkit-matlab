@@ -1,13 +1,13 @@
 % Compare csv prices with the date provided by API
 
 % Load api price data
-T1 = amber().getData('prices', {'2025-04-04' '2025-04-10'}, 30);
+T1 = amber().getPrices({'2025-04-04' '2025-04-10'}, 30);
 T1.start.TimeZone = 'Australia/Adelaide';
 
 % Load csv price data
-f1 = 'amber\sa_prices_30min_csv\2001129180-RTOU-E1-fromGrid-timeOfUse.csv';
-f2 = 'amber\sa_prices_30min_csv\2001129180-RTOU-E2-fromGrid-controlledLoadTimeOfUse';
-f3 = 'amber\sa_prices_30min_csv\2001129180-NOTAPPLIC-B1-toGrid-feedIn.csv';
+f1 = 'amber\data\prices_sa_30min\2001129180-RTOU-E1-fromGrid-timeOfUse.csv';
+f2 = 'amber\data\prices_sa_30min\2001129180-RTOU-E2-fromGrid-controlledLoadTimeOfUse';
+f3 = 'amber\data\prices_sa_30min\2001129180-NOTAPPLIC-B1-toGrid-feedIn.csv';
 T2 = read_amber_csv({f1 f2 f3}, {'RTOU' 'RTOUCL' 'FIT'}, '+10:00', 'Australia/Adelaide');
 
 % Join

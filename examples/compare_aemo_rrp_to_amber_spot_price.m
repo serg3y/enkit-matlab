@@ -4,7 +4,7 @@ T1.time.TimeZone = '+1000';
 T1.time = T1.time - minutes(5);
 T1.RRP = (T1.RRP/10)*1.1;
 
-T2 = amber().getData('prices', {'2025-01-01' '2025-01-30'}, 5);
+T2 = amber().getPrices({'2025-01-01' '2025-01-30'}, 5);
 T2.time = T2.start;
 
 T = innerjoin(T1, T2, 'keys', 'time')

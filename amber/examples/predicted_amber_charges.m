@@ -1,13 +1,21 @@
 
-% Load usage data
-fold = 'serge';
-T1 = nem12read(fullfile('sapn', fold), [], 30, '+10');
+% Load api price data
+T1 = amber().getPrices({'2024-09-01' '2025-09-01'}, 30);
+T1 = amber().getPrices({'2024-09-01' '2025-09-01'},  5);
+T1.start.TimeZone = 'Australia/Adelaide';
 
-% Load price data
+% Load SAPN usage data
+archive = 'D:\MATLAB\enkit\sapn';
+fold = 'serge';
+T1 = nem12read(fullfile(archive, fold, '*.csv'), [], 30, '+10');
+
+% Load Amber price data
 f1 = 'amber\sa_prices_30min_csv\2001129180-RTOU-E1-fromGrid-timeOfUse.csv';
 f2 = 'amber\sa_prices_30min_csv\2001129180-RTOU-E2-fromGrid-controlledLoadTimeOfUse';
 f3 = 'amber\sa_prices_30min_csv\2001129180-NOTAPPLIC-B1-toGrid-feedIn.csv';
 T2 = read_amber_csv({f1 f2 f3}, {'RTOU' 'RTOUCL' 'FIT'}, '+10:00', 'Australia/Adelaide');
+
+T2 = read_amber_csv({'amber\sa_prices_30min_csv\2001129180-RTOU-E1-fromGrid-timeOfUse.csv'}, {'RTOU'}, '+10:00', 'Australia/Adelaide');
 
 % Join
 T = innerjoin(T1, T2, 'Keys', 'start');

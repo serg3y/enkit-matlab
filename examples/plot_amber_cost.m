@@ -10,7 +10,7 @@ rez = 30;
 % Load data
 T = nem12read(fullfile('sapn', fold), [], rez, '+10');
 
-t = amber().getData('prices', {'2024-12-01' '2025-06-18'}, rez);
+t = amber().getPrices({'2024-12-01' '2025-08-18'}, rez);
 T = innerjoin(T, t, 'Keys', 'start');
 [T.time, T.date] = timeofday2(T.start);
 T.time.Format = 'hh:mm';
@@ -75,7 +75,7 @@ for k = 1:numel(list)
     y = accumarray(i, min(T.([list{k} '_cost']), 0));
     plotsteps(gca, g, y, c2, sprintf('avg = %.2f $/day', mean(min(y, 0))))
     legend show location best
-    ylabel({'Value' '$/day'})
+    ylabel({'Cost' '$/day'})
 
     axis_stack(6,6,k,2,[],[0 0.01])
     plotheatmap(T.date, T.time, T.([list{k} '_cost']))

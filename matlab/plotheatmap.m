@@ -1,5 +1,5 @@
 function [h, A, xVec, yVec] = plotheatmap(X, Y, V, accumfun, fillval, alphafun)
-% Plot heatmap and activate data cursor
+% Plot heatmap and activate data cursor.
 %   plotheatmap(X, Y, V)
 %   plotheatmap(X, Y, V, accumfun, fillval, alphafun)
 %   [h, A, xVec, yVec] = plotheatmap(__)
@@ -29,12 +29,14 @@ xStep = mode(diff(unique(X)));
 yStep = mode(diff(unique(Y)));
 
 % Create full range
-xVec = min(X):xStep:max(X);
-yVec = min(Y):yStep:max(Y);
+xVec = min(X) : xStep : max(X);
+yVec = min(Y) : yStep : max(Y);
 
 % Map X and Y onto indices
-[~, xi] = ismember(X, xVec);
-[~, yi] = ismember(Y, yVec);
+% [~, xi] = ismember(X, xVec);
+% [~, yi] = ismember(Y, yVec);
+xi = round((X - min(X)) / xStep) + 1;
+yi = round((Y - min(Y)) / yStep) + 1;
 
 % Accumulate
 A = accumarray([yi xi], V, [numel(yVec) numel(xVec)], accumfun, fillval);

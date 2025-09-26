@@ -2,7 +2,7 @@
 %
 % Remarks:
 % - RRP is the wholesale spot price is $/MWh (exGST)
-% - RRP is converted to spot price, for convinience, in c/kWh (incGST):
+% - RRP is converted to spot price, for convenience, in c/kWh (incGST):
 %   spot = RRP / 10 * 1.1
 % - time is the start time of the each interval
 % - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
@@ -41,18 +41,19 @@ classdef aemo
             months = month1 : calmonths(1) : month2;
 
             % Read
+            region = upper(region);
             T = arrayfun(@(x)obj.getPrice1(region, x), months, 'UniformOutput', false);
             T = vertcat(T{:});
 
-            % Insert 'time' and 'spot' columns
+            % Insert 'start' and 'spot' columns
             ind = T.SETTLEMENTDATE >= datetime('2021-10-01', 'TimeZone', '+1000');
-            time = T.SETTLEMENTDATE - minutes(ind*5 + ~ind*30); % Start time of each period
+            start = T.SETTLEMENTDATE - minutes(ind*5 + ~ind*30); % Start time of each period
             spot = (T.RRP/10) * 1.1; % Convert $/MWh exGST > c/kWh incGST
-            T = addvars(T, time, spot, 'Before', 1);
+            T = addvars(T, start, spot, 'Before', 1);
 
             % Filter on time
-            T = T(T.time >= span(1) & T.time < span(2) + 1, :);
-            T = sortrows(T, 'time'); % Ensure time is sorted
+            T = T(T.start >= span(1) & T.start < span(2) + 1, :);
+            T = sortrows(T, 'start'); % Ensure time is sorted
 
             % Resample
             if nargin>3 && ~isempty(rez)
@@ -60,19 +61,19 @@ classdef aemo
                     fields = T.Properties.VariableNames;
                 end
 
-                % Downsample 'time' to nearest rez-minute mark
-                T.time = T.time - minutes(mod(minute(T.time), rez));
+                % Downsample 'start' to nearest rez-minute mark
+                T.start = T.start - minutes(mod(minute(T.start), rez));
 
                 % Compute means for numeric variables
-                t1 = groupsummary(T, 'time', @mean, intersect({'spot' 'TOTALDEMAND' 'RRP'}, fields));
+                t1 = groupsummary(T, 'start', @mean, intersect({'spot' 'TOTALDEMAND' 'RRP'}, fields));
                 t1 = renamevars(t1, t1.Properties.VariableNames, strrep(t1.Properties.VariableNames, 'fun1_', ''));
                 t1 = removevars(t1, 'GroupCount');
 
                 % Get last values for categorical variables
                 if ~isempty(intersect({'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields))
-                    [~, ind] = unique(T.time, 'last');
-                    t2 = T(ind, intersect({'time' 'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields));
-                    T = outerjoin(t1, t2, 'Keys', 'time', 'MergeKeys', true);
+                    [~, ind] = unique(T.start, 'last');
+                    t2 = T(ind, intersect({'start' 'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields));
+                    T = outerjoin(t1, t2, 'Keys', 'start', 'MergeKeys', true);
                 else
                     T = t1;
                 end
@@ -109,9 +110,20 @@ classdef aemo
                     mkdir(fileparts(path))
                 end
                 url = ['https://aemo.com.au/aemo/data/nem/priceanddemand/' file];
-                cmd = sprintf('curl -sS "%s" > "%s"', url, path);
+                cmd = sprintf('curl -L -sS "%s" > "%s"', url, path);
                 disp(cmd) % Progress
-                system(cmd); % Download
+                err = system(cmd); % Download
+
+                % Check file
+                if err || ~isfile(path)
+                    error('something went wront')
+                else
+                    txt = fileread(path);
+                    if startsWith(txt,'<')
+                        delete(path)
+                        error('%s', txt)
+                    end
+                end
             end
             
             % Read file

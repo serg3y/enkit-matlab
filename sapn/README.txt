@@ -13,3 +13,7 @@ When confirming the email address check your spam folder.
 https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard
 
 5. Click "Download Data", under the plot, and choose "Detailed Report (CSV)".
+
+
+For other states go to here:
+https://support.solarquotes.com.au/hc/en-us/articles/360001312176-How-Do-I-Access-my-Smart-Meter-Data

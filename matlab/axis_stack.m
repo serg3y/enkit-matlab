@@ -1,4 +1,5 @@
 function axis_stack(row, numrows, col, numcols, margins, spacing)
+% axis_stack(row, numrows, col, numcols, margins, spacing)
 
 % Defaults
 if nargin<1 || isempty(row), row = 1; end

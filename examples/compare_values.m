@@ -16,7 +16,7 @@ T = T(i, {'start'  'buy_price' 'sell_price' 'tariff_price'});
 fig(1, 'dark', 'handy')
 plot(T.start, T.buy_price)
 
-T = amber().getData('prices',{'2025-04-03' '2025-04-10'}, 30);
+T = amber().getPrices({'2025-04-03' '2025-04-10'}, 30);
 
 plot(T.start, T.buy_price)
 
