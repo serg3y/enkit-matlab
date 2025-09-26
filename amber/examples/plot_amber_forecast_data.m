@@ -15,8 +15,8 @@ value_field = ["spot_price"] % eg ["general_price" "feedIn_price" "spot_price"];
 time_field = 'start'; % 'start' or 'query'
 
 %%
-for dt = datetime('2025-06-14') % datetime('today')
-    plot(time_field, value_field, {dt dt+1}, 30)
+for dt = datetime('2025-06-13') % datetime('today')
+    myplot(time_field, value_field, {dt dt+1}, 30)
 
     t = get(gca, 'XTickLabel');
     t{end} = strrep(t{end}, '00:00', '24:00');
@@ -29,7 +29,7 @@ end
 rez = 30;
 while true
     span = {datetime-0.5 datetime+2};
-    plot(time_field, value_field, span, rez)
+    myplot(time_field, value_field, span, rez)
 
     t = get(gca, 'XTickLabel');
     t{end} = strrep(t{end}, '00:00', '24:00');
@@ -43,7 +43,7 @@ end
 
 
 
-function plot(time_field, value_field, span, rez)
+function myplot(time_field, value_field, span, rez)
 
 T = amber().readForecastData(span, rez, 24);
 
@@ -64,7 +64,7 @@ else
 end
 
 % Calc median for each row with same start time
-T = groupsummary(T, {time_field 'forecast'}, @(x)median(x, 'omitmissing'), value_field);
+T = groupsummary(T, {time_field 'forecast'}, @(x)median(x), value_field);
 T = renamevars(T, T.Properties.VariableNames, strrep(T.Properties.VariableNames, 'fun1_', ''));
 
 %% Plot
