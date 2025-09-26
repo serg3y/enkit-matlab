@@ -1,5 +1,5 @@
-Rebates:
-	SA Gov REPS (Retailer Energy Productivity Scheme)
+Battery Rebates:
+	SA Gov Retailer Energy Productivity Scheme (REPS)
 		https://help.amber.com.au/hc/en-us/articles/23408555825165-Cash-rebate-for-South-Australian-SmartShift-customers-SA-REPS
 		https://mactradeservices.com.au/south-australia/virtual-power-plant (form, scroll down the page...)
 			- A copy of your original signed quote or contract from the company that installed your battery;
