@@ -105,19 +105,19 @@ classdef amber
         %             otherwise, a.XRuler.FontSize = 0.01; % no axis
         %         end
         % 
-        %         X = T.start;
+        %         X = T.time;
         %         switch type(k)
         % 
         %             case {'buy_amount' 'sell_amount'  'buy2_amount'}
         %                 ylabel(regexprep([source; type(k)], {'_' 'amount'}, {' ' '(kwh)'}))
-        %                 X = T.start;
+        %                 X = T.time;
         %                 Y = T.(type(k));
         %                 [c, cmap, cstr] = col(type(k));
         %                 switch mode(k)
         %                     case "heatmap"
         %                         plotHeatmap(a, X, Y, cmap)
         %                     case ""
-        %                         d = dateshift(X, 'start', 'day');
+        %                         d = dateshift(X, 'time', 'day');
         %                         y = accumarray(findgroups(d), Y, [], @sum);
         %                         t = sprintf([cstr '%.2fkwh\n'], sum(y));
         %                         plotsteps(a, unique(d), y, c, t)
@@ -133,7 +133,7 @@ classdef amber
         %                         plotSpread(a, X, Y, X, agl(X, type(k)), c)
         %                         plotsteps(a, X, Y, c)
         %                     case "5min"
-        %                         plotSpread(a, X, Y, T2.start, T2.(type(k)), c)
+        %                         plotSpread(a, X, Y, T2.time, T2.(type(k)), c)
         %                         plotsteps(a, X, Y, c)
         %                     case "24hr"
         %                         X = timeofday(X);
@@ -157,17 +157,17 @@ classdef amber
         %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
         %                 T = obj.getData('prices', span, 30);
         %                 T2 = obj.getData('usage', span, 30);
-        %                 X = T.start;
+        %                 X = T.time;
         %                 switch mode(k)
         %                     case ""
         %                         Y = agl(X, 'buy_price') .* T2.buy_amount;
-        %                         d = dateshift(X, 'start', 'day');
+        %                         d = dateshift(X, 'time', 'day');
         %                         y1 = accumarray(findgroups(d), Y, [], @sum)/100 + agl([], 'supply');
         %                         t = sprintf('\\color[rgb]{1 .2 .2}AGL = $%.2f\n', sum(y1) );
         %                         plotsteps(a, unique(d), y1, [1 .2 .2], t)
         % 
         %                         Y = T.buy_price .* T2.buy_amount;
-        %                         d = dateshift(X, 'start', 'day');
+        %                         d = dateshift(X, 'time', 'day');
         %                         y = accumarray(findgroups(d), Y, [], @sum)/100 + amb([], 'supply');
         %                         t = sprintf('\\color[rgb]{.4 .4 1}Amber = $%.2f\n', sum(y) );
         %                         plotsteps(a, unique(d), y, [0.2 .2 1], t)
@@ -187,7 +187,7 @@ classdef amber
         %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
         %                 T = obj.getData('prices', span, 30);
         %                 T2 = obj.getData('usage', span, 30);
-        %                 X = T.start;
+        %                 X = T.time;
         %                 % Y = (T.sell_price - agl(X,'sell')) .* T2.sell_amount;
         %                 Y = (T.sell_price ) .* T2.sell_amount;
         %                 cmap = rbg;
@@ -197,7 +197,7 @@ classdef amber
         %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
         %                 T = obj.getData('prices', span, 30);
         %                 T2 = obj.getData('usage', span, 30);
-        %                 X = T.start;
+        %                 X = T.time;
         %                 Y = (T.sell_price - agl(X,'sell')) .* T2.sell_amount;
         %                 cmap = rbg;
         %                 plotHeatmap(a, X, Y, cmap)
@@ -207,8 +207,8 @@ classdef amber
         %                 plotsteps(a, X, T.buy_price, 'r')
         %                 plotsteps(a, X, T.sell_price, 'b')
         %                 if mode(k) == "5min"
-        %                     plotSpread(a, X, T.buy_price, T2.start, T2.buy_price, 'r')
-        %                     plotSpread(a, X, T.sell_price, T2.start, T2.sell_price, 'b')
+        %                     plotSpread(a, X, T.buy_price, T2.time, T2.buy_price, 'r')
+        %                     plotSpread(a, X, T.sell_price, T2.time, T2.sell_price, 'b')
         %                 end
         % 
         %             case {'buy_price_diff' 'sell_price_diff'}
@@ -240,7 +240,7 @@ classdef amber
         %                 yline(a, 100, 'w--')
         %                 linkaxes([a a], 'x'), xlim([min(X) max(T.stop)])
         %                 if mode(k) == "5min"
-        %                     plotSpread(a, X, T.renewables, T2.start, T2.renewables, [0 0.5 0])
+        %                     plotSpread(a, X, T.renewables, T2.time, T2.renewables, [0 0.5 0])
         %                 end
         %         end
         %         if mode(k) ~= "heatmap"
@@ -455,7 +455,7 @@ classdef amber
             % Parse time
             T.startTime = datetime(T.startTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
             T.endTime = datetime(T.endTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
-            T.startTime = dateshift(T.startTime, 'start', 'minute'); % Round start time to neares minute
+            T.startTime = dateshift(T.startTime, 'start', 'minute'); % Round time to neares minute
 
             % Replace endTime with duration
             T.duration = minutes(T.endTime-T.startTime);
@@ -489,7 +489,7 @@ classdef amber
                     end
 
                     % Improve column names
-                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'startTime' 'perKwh_general' 'perKwh_controlledLoad' 'perKwh_feedIn' 'spotPerKwh_general'}, {'start' 'buy_price' 'buy2_price' 'sell_price' 'spot_price'});
+                    T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'startTime' 'perKwh_general' 'perKwh_controlledLoad' 'perKwh_feedIn' 'spotPerKwh_general'}, {'time' 'buy_price' 'buy2_price' 'sell_price' 'spot_price'});
 
                     % Re-order columns
                     T = movevars(T, {'buy_price' 'buy2_price' 'sell_price' 'spot_price' 'renewables'}, 'After', 'duration');
@@ -528,7 +528,7 @@ classdef amber
             while true
                 now_local = datetime('now');
                 offset = minutes(period - mod(minute(now_local), period) + 0.5 + rand_offset);
-                next_local = dateshift(now_local, 'start', 'minute') + offset; % Wait 1-2 min past the mark, to ensure prices are updated and polling is randomised
+                next_local = dateshift(now_local, 'time', 'minute') + offset; % Wait 1-2 min past the mark, to ensure prices are updated and polling is randomised
                 fprintf(' Next download: %s\n', next_local) % Progress
                 pause(seconds(next_local - now_local))
                 try
@@ -601,8 +601,8 @@ classdef amber
                         t = unique(t, 'rows');
 
                         % Filter data on time
-                        day.TimeZone = t.start.TimeZone;
-                        t = t(t.start >= day & t.start < day + 1, :);
+                        day.TimeZone = t.time.TimeZone;
+                        t = t(t.time >= day & t.time < day + 1, :);
                         parquetwrite(parquet, t); % Save cache
                     end
                 end
@@ -616,15 +616,15 @@ classdef amber
             T.forecast.Format = 'hh:mm';
             
             % Filter on time span
-            time_zone = T.start.TimeZone;
-            T = T(T.start >= checkdate(span{1}, time_zone) & T.start < checkdate(span{2}, time_zone), :);
+            time_zone = T.time.TimeZone;
+            T = T(T.time >= checkdate(span{1}, time_zone) & T.time < checkdate(span{2}, time_zone), :);
 
             % Filter on forecast duration
             if ~isempty(forecast_limit)
                 T = T(T.forecast < duration(forecast_limit, 0, 0), :);
             end
 
-            T = sortrows(T, {'start' 'query' 'forecast'}); % Sort on time fields
+            T = sortrows(T, {'time' 'query' 'forecast'}); % Sort on time fields
         end
 
         function T = readForecastFile(~, file)
@@ -678,7 +678,7 @@ classdef amber
 
             % Rename
             vars = T.Properties.VariableNames;
-            T = renamevars(T, vars, regexprep(vars, {'(.*)_(.*)' 'startTime' 'spotPerKwh' '_perKwh'}, {'$2_$1' 'start' 'spot_price' '_price'}));
+            T = renamevars(T, vars, regexprep(vars, {'(.*)_(.*)' 'startTime' 'spotPerKwh' '_perKwh'}, {'$2_$1' 'time' 'spot_price' '_price'}));
 
             % Reorder
             vars = T.Properties.VariableNames;

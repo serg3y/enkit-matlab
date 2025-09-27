@@ -3,7 +3,8 @@ wholesale_rrp_dollars_per_mwh[t] = AEMO recommended retail price ($/MWh) at inte
 amber_price_markup_factor = Amber's retail energy price markup costs, 1.1 (coef)
 customer_usage_kwh[t] = customer consumption (kWh) at interval t
 customer_export_kwh[t] = customer export (kWh) at interval t
-loss_factor = network loss multiplier, ≥1 (coeficient)
+distribution_loss_factor
+distribution_loss_factor = network loss multiplier, ≥1 (coeficient)
 amber_margin_cents_per_kwh[t] = additional retailer margin (cents per kWh)
 network_charge_cents_per_kwh[t] = SAPN network charge (cents per kWh) at interval t
 network_charge_cents_per_day = SAPN network daily charge (cents per day)
@@ -14,10 +15,10 @@ gst_rate = 0.10
 
 Equations:
 1. Amber spot price (ex GST)
-amber_spot_price_cents_per_kwh[t] = wholesale_rrp_dollars_per_mwh[t] * 100 / 1000 * amber_price_markup_factor 
+amber_spot_price_cents_per_kwh[t] = wholesale_rrp_dollars_per_mwh[t] / 10 * amber_price_markup_factor 
 
 2. Amber energy price:
-amber_energy_price_cents_per_kwh[t] = amber_spot_price_cents_per_kwh[t] * loss_factor + amber_margin_cents_per_kwh[t]
+amber_energy_price_cents_per_kwh[t] = amber_spot_price_cents_per_kwh[t] * distribution_loss_factor + amber_margin_cents_per_kwh[t]
 
 3. Total energy and network charge:
 total_energy_and_network_charge_cents = sum( customer_usage_kwh[t] * (amber_energy_price_cents_per_kwh[t] + network_charge_cents_per_kwh[t]))

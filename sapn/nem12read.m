@@ -41,16 +41,16 @@ if isempty(T)
 end
 
 % Remove duplicates (for overlapping files)
-[~, ind] = unique(T.start);
+[~, ind] = unique(T.time);
 T = T(ind, :);
 
 % Resample (optional)
 if ~isempty(rez)
     % Floor time to the nearest rez period
-    T.start = dateshift(T.start, 'start', 'minute') - minutes(mod(minute(T.start), rez));
+    T.time = dateshift(T.time, 'start', 'minute') - minutes(mod(minute(T.time), rez));
 
     % Sum across each period by time
-    T = groupsummary(T, 'start', @sum, T.Properties.VariableNames(2:end));
+    T = groupsummary(T, 'time', @sum, T.Properties.VariableNames(2:end));
 
     % Clean up helper variables
     T = renamevars(T, T.Properties.VariableNames, strrep(T.Properties.VariableNames, 'fun1_', ''));
@@ -63,13 +63,13 @@ if ~isempty(names)
 end
 
 % Timezone
-T.start.TimeZone = '+10';
+T.time.TimeZone = '+10';
 if ~isempty(timezone)
-    T.start.TimeZone = timezone; % Change time zone (optional)
+    T.time.TimeZone = timezone; % Change time zone (optional)
 end
 
 % Condition (avoid precission errors using innerjoin)
-T.start = dateshift(T.start, 'start', 'second');
+T.time = dateshift(T.time, 'start', 'second');
 
 end
 
@@ -116,9 +116,9 @@ data = textscan(block.data, frmt, 'Delimiter', ',', 'CollectOutput', true);
 
 % Build table
 kwh = reshape(data{2}', [], 1);
-start = reshape((data{1} + tod)', [], 1);
-start.Format = 'yyyy-MM-dd HH:mm';
+time = reshape((data{1} + tod)', [], 1);
+time.Format = 'yyyy-MM-dd HH:mm';
 channel = repmat(string(block.channel), numel(kwh), 1);
 
-T = table(start, kwh, channel);
+T = table(time, kwh, channel);
 end

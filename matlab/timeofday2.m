@@ -6,7 +6,7 @@ function [tod, date] = timeofday2(tt, timezone)
 % - This version returns the daylight savings adjusted clock time, not
 %   elpased time since start of day, like the normal timeofday().
 
-% Apply time zone if given
+% Apply or convert timezone if provided
 if nargin > 1 && ~isempty(timezone)
     tt.TimeZone = timezone;
 end

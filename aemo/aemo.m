@@ -2,11 +2,10 @@
 %
 % Remarks:
 % - RRP is the wholesale spot price is $/MWh (exGST)
-% - RRP is converted to spot price, for convenience, in c/kWh (incGST):
-%   spot_price = RRP / 10
-% - 'time' is the start time of the each interval
+% - rrp is same in c/kWh: rrp = RRP / 10
+% - time is the start time of the each interval
 % - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
-% - See tariffs.m to calculate final consumer prices.
+% - Use tariffs.m to convert rrp to final consumer prices.
 %
 % Example: 
 %   T = aemo().getPrice('SA', {'2024-07-01' 0})
@@ -51,8 +50,8 @@ classdef aemo
             cutover = datetime(2021, 10, 1, 'TimeZone', '+1000');
             period  = 30 - 25*(T.SETTLEMENTDATE >= cutover); % 30 before cutover, 5 after
             time = T.SETTLEMENTDATE - minutes(period); % Start time of each period
-            spot = T.RRP/10; % Convert $/MWh to c/kWh
-            T = addvars(T, time, spot, 'Before', 1);
+            rrp = T.RRP/10; % Convert $/MWh to c/kWh
+            T = addvars(T, time, rrp, 'Before', 1);
 
             % Filter and sort time
             T = T(T.time >= span(1) & T.time < span(2) + 1, :);
@@ -71,7 +70,7 @@ classdef aemo
             T.time = T.time - minutes(mod(minute(T.time), rez));
 
             % Compute means for numeric variables
-            t1 = groupsummary(T, 'start', @mean, intersect({'spot' 'TOTALDEMAND' 'RRP'}, fields));
+            t1 = groupsummary(T, 'start', @mean, intersect({'rrp' 'TOTALDEMAND' 'RRP'}, fields));
             t1 = renamevars(t1, t1.Properties.VariableNames, strrep(t1.Properties.VariableNames, 'fun1_', ''));
             t1 = removevars(t1, 'GroupCount');
 

@@ -1,27 +1,27 @@
 %% Compare usage - SAPN vs Amber (same)
 % T1 = amber().getUsage({'2025-06-23' '2025-07-01'}); % Amber (starts 2025-06-23)
 % T2 = nem12read('D:\MATLAB\enkit\sapn\data\Serge\*.csv');
-% T = innerjoin(T1, T2, 'Keys', 'start');
+% T = innerjoin(T1, T2, 'Keys', 'time');
 % rms(T.buy_amount - T.buy_kwh) % same
 % rms(T.sell_amount - T.sell_kwh) % same
 
 %% Compare price - AEMO RTOU calculated vs Amber (same)
 % T1 = amber().getPrices({'2024-11-30' '2025-09-20'}); % spot_price (starts 2024-11-30)
-% T2 = aemo().getPrice('SA',{'2024-11-30' '2025-09-20'}); % spot
-% T2.RTOU_B = tariffs('RTOU_B', T2.start, T2.spot); % predict amber buy price
-% T2.RTOU_S = tariffs('RTOU_S', T2.start, T2.spot); % predict amber sell price
-% T = innerjoin(T1, T2, 'Keys', 'start');
-% rms(T.spot_price - T.spot) % same
+% T2 = aemo().getPrice('SA',{'2024-11-30' '2025-09-20'},'rrp'); % rrp
+% T2.RTOU_B = tariffs('RTOU_B', T2.time, T2.rrp); % predict amber buy price
+% T2.RTOU_S = tariffs('RTOU_S', T2.time, T2.rrp); % predict amber sell price
+% T = innerjoin(T1, T2, 'Keys', 'time');
+% rms(T.spot_price - T.rrp) % same
 % rms(T.RTOU_B - T.buy_price) % same
 % rms(T.RTOU_S - T.sell_price) % same
 
 %% Load data 
-% Prices - AEMO spot > RTOU calculated
-switch -3
+
+switch 8
     case -3,span = {'2024-03-28' '2025-03-29'}; % Andrew
     case -2,span = {'2024-12-01' '2025-08-31'}; % Serge
     case -1,span = {'2024-09-01' '2025-08-31'}; % Jenka
-    case 1, span = {'2024-12-01' '2024-12-29'};
+    case 1, span = {'2024-12-01' '2024-12-29'}; % Serge amber bill periods
     case 2, span = {'2024-12-30' '2025-01-29'};
     case 3, span = {'2025-01-30' '2025-02-27'};
     case 4, span = {'2025-02-28' '2025-03-29'};
@@ -31,12 +31,14 @@ switch -3
     case 8, span = {'2025-06-30' '2025-07-29'};
     case 9, span = {'2025-07-30' '2025-08-29'};
 end
-T1 = aemo().getPrice('SA', span);
-T1.buy_price  = tariffs('RTOU_B', T1.start, T1.spot); % predict
-T1.sell_price = tariffs('RTOU_S', T1.start, T1.spot);
+
+% Convert AEMO rrp > Amber RTOU price
+T1 = aemo().getPrice('SA', span, 'rrp');
+T1.buy_price  = tariffs('amber_rtou_buy', T1.time, T1.rrp); % predict
+T1.sell_price = tariffs('amber_rtou_sell', T1.time, T1.rrp);
 
 % Usage - SAPN
-switch 2
+switch 1
     case 1, folder = 'Serge';  curtailment = false;
     case 2, folder = 'Andrew'; curtailment = false; % 2023-03-30 to 2025-03-29
     case 3, folder = 'Jenka';  curtailment = true;
@@ -46,12 +48,12 @@ try
     T2.buy_kwh = T2.buy_kwh + T2.buy2_kwh;
     T2.buy2_kwh = [];
 end
-T2.start = dateshift(T2.start, 'start', 'second');
+T2.time = dateshift(T2.time, 'start', 'second');
 
 % Join
-T = innerjoin(T1, T2, 'Keys', 'start');
-assert(isscalar(unique(diff(T.start))), 'Time precission errors')
-[T.tod, T.date] = timeofday2(T.start);
+T = innerjoin(T1, T2, 'Keys', 'time');
+assert(isscalar(unique(diff(T.time))), 'Time precission errors')
+[T.tod, T.date] = timeofday2(T.time);
 [i, g] = findgroups(T.date);
 
 % Cost
@@ -101,36 +103,36 @@ BillTotal = sum(D.DailyTotal);
 clc
 fprintf('User: %s\n', folder)
 fprintf('Curtailing: %s\n', string(curtailment))
-fprintf('Period: %s - %s  (%g days)\n', T.start([1 end]), round(days(diff(T.start([1 end])))))
-if 1
-    fprintf('%-16s%9.2f\n','Usage (kWh)' ,     Usage)
-    fprintf('%-16s%9.2f\n','Cost ($)',         Cost)
-    fprintf('%-16s%9.2f\n','AvgRate (c/kWh)',  BuyRate)
-    fprintf('%-16s%9.2f\n','SupplyFee ($)',    Supply)
-    fprintf('%-16s%9.2f\n','AmberFee ($)',     AmberFee)
-    fprintf('%-16s%9.2f\n','GST ($)',          BuyGST)
-    fprintf('%-16s%9.2f\n','ChargesTotal ($)', ChargesTotal)
-    fprintf('%-16s%9.2f\n','Export (kWh)',     Export)
-    fprintf('%-16s%9.2f\n','Credits (kWh)',    Credits)
-    fprintf('%-16s%9.2f\n','AvgRate (c/kWh)',  SellRate)
-    fprintf('%-16s%9.2f\n','Bill Total ($)',   BillTotal)
-else
-    fprintf('%.4f\n', Usage)
-    fprintf('%.4f\n', BuyRate)
-    fprintf('%.4f\n', Cost)
-    fprintf('%.4f\n', Supply)
-    fprintf('%.4f\n', 0)
-    fprintf('%.4f\n', AmberFee)
-    fprintf('%.4f\n', BuyGST)
-    fprintf('%.4f\n', ChargesTotal)
-    fprintf('%.4f\n', Export)
-    fprintf('%.4f\n', SellRate)
-    fprintf('%.4f\n', Credits)
-    fprintf('%.4f\n', 0)
-    fprintf('%.4f\n', SellGST)
-    fprintf('%.4f\n', Credits)
-    fprintf('%.4f\n', BillTotal)
-end
+fprintf('Period: %s - %s  (%g days)\n', T.time([1 end]), round(days(diff(T.time([1 end])))))
+
+fprintf('%-16s%9.2f\n','Usage (kWh)' ,     Usage)
+fprintf('%-16s%9.2f\n','Cost ($)',         Cost)
+fprintf('%-16s%9.2f\n','AvgRate (c/kWh)',  BuyRate)
+fprintf('%-16s%9.2f\n','SupplyFee ($)',    Supply)
+fprintf('%-16s%9.2f\n','AmberFee ($)',     AmberFee)
+fprintf('%-16s%9.2f\n','GST ($)',          BuyGST)
+fprintf('%-16s%9.2f\n','ChargesTotal ($)', ChargesTotal)
+fprintf('%-16s%9.2f\n','Export (kWh)',     Export)
+fprintf('%-16s%9.2f\n','Credits (kWh)',    Credits)
+fprintf('%-16s%9.2f\n','AvgRate (c/kWh)',  SellRate)
+fprintf('%-16s%9.2f\n','Bill Total ($)',   BillTotal)
+
+fprintf('%.4f\n', Usage)
+fprintf('%.4f\n', BuyRate)
+fprintf('%.4f\n', Cost)
+fprintf('%.4f\n', Supply)
+fprintf('%.4f\n', 0)
+fprintf('%.4f\n', AmberFee)
+fprintf('%.4f\n', BuyGST)
+fprintf('%.4f\n', ChargesTotal)
+fprintf('%.4f\n', Export)
+fprintf('%.4f\n', SellRate)
+fprintf('%.4f\n', Credits)
+fprintf('%.4f\n', 0)
+fprintf('%.4f\n', SellGST)
+fprintf('%.4f\n', Credits)
+fprintf('%.4f\n', BillTotal)
+
 
 %% Plot
 fig(1, 'dark', 'handy')
