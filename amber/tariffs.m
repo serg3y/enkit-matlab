@@ -20,17 +20,8 @@ function out = tariffs(tariff, time, spot)
 %   price = spot * 1.1105195 + (tariff + 4.4502) * 1.1
 %
 % Example:
-% tod = duration(0:0.5:23.5,0,0, 'Format', 'hh:mm');
-% fig(1, 'dark', 'handy')
-% plotsteps(gca, tod, tariffs('RTOU_B', datetime(2025, 7, 2) + tod), [], 'AMBER RTOU 2025',  [], 'linewidth', 2)
-% plotsteps(gca, tod, tariffs('RTOU_B', datetime(2024, 7, 2) + tod), [], 'AMBER RTOU 2024',  [], 'linewidth', 2)
-% plotsteps(gca, tod, tariffs('RELE2W', datetime(2024, 7, 2) + tod), [], 'AMBER RELEW 2024', [], 'linewidth', 2)
-% plotsteps(gca, tod, tariffs('AGL'   , datetime(2024, 7, 2) + tod), [], 'AGL 2024',         [], 'linewidth', 2)
-% ylim([0 60])
-% xlim([min(tod) max(tod)])
-% ylabel 'c/kWh'
-% title 'Fee Options'
-% legend show location SO
+%   t = datetime(2025, 7, 2) + (0:0.5:24)/24
+%   buy_price = tariffs('RTOU_B', t) % c/kWh (inc GST)
 %
 % Links:
 %   https://www.sapowernetworks.com.au/public/download.jsp?id=328119
@@ -41,12 +32,13 @@ function out = tariffs(tariff, time, spot)
 
 % All fee options as a table
 data = {
-    "RTOU_B" "2024-07-01" 'Australia/Adelaide'  [0  1  6 10 15]' [25.56422 13.21122 25.56422  9.08622 25.56422]' 1.1105195  % Residential Time of Use 2024   SAPN report: ([18.79 7.56 3.81] + 4.4502) * 1.1
-    "RTOU_B" "2025-07-01" 'Australia/Adelaide'  [0     6 10 16]' [         14.68214 25.11014  9.47914 25.11014]' 1.0796946  % Residential Time of Use 2025
-    "RTOU_S" "2024-07-01" 'Australia/Adelaide'  [0            ]' [ 0                                          ]' 1.0095632  % Residential Time of Use Sell 2025
+    "RTOU_B" "2023-07-01" 'Australia/Adelaide'  [0  1  6 10 15]' [23.4192  12.3092  23.4192   8.6022  23.4192 ]' 1.1105195  % SAPN report: [16.84 6.74 3.37] * 1.1 + 4.8952 = [23.4192 12.3092 8.6022] (THIS IS JUST A GUESS! NO DATA)
+    "RTOU_B" "2024-07-01" 'Australia/Adelaide'  [0  1  6 10 15]' [25.56422 13.21122 25.56422  9.08622 25.56422]' 1.1105195  % SAPN report: [18.79 7.56 3.81] * 1.1 + 4.8952 = [25.5642 13.2112 9.0862]
+    "RTOU_B" "2025-07-01" 'Australia/Adelaide'  [0     6 10 16]' [         14.68214 25.11014  9.47914 25.11014]' 1.0796946  % SAPN report: [18.95 9.47 4.74] * 1.1 + 4.2651 = [25.1101 14.6821 9.4791]
+    "RTOU_S" "2024-07-01" 'Australia/Adelaide'  [0            ]' [ 0                                          ]' 1.0095632  % 
     "RTOU_S" "2025-07-01" 'Australia/Adelaide'  [0 10 16      ]' [ 0        -1       0                        ]' 0.9815405  % Residential Time of Use Sell 2025
     "RELE2W" "2024-07-01" 'Australia/Adelaide'  [0 10 16 17 21]' [15.65322  8.20622 15.65322 41.29422 15.65322]' 1.1105195  % Residential Electrify Two Way, SAPN report: ([33.09 9.78 3.01] + 4.4502) * 1.1
-    "RELEW"  "2025-07-01" 'Australia/Adelaide'  [0 10 16 17 21]' [nan      nan      nan       nan     nan     ]' nan        % Residential Electrify Two Way
+    "RESELE" "2025-07-01" 'Australia/Adelaide'  [0 10 16 17 21]' [nan      nan      nan       nan     nan     ]' nan        % Residential Electrify Two Way
     "AGL"    "2024-07-01" 'Australia/Adelaide'  [0  1  6 10 15]' [47.41    34.94    47.41    31.78    47.41   ]' 0        };%
 T = cell2table(data, 'VariableNames', {'tariff' 'date' 'timezone' 'tod' 'fees' 'scale'}); % Form a table
 T.date = datetime(T.date, 'TimeZone', '+10'); % Format start date

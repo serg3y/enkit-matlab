@@ -5,6 +5,9 @@
 *.lnk
 *.sx2
 *.ini
+*.bat
+*token.txt
+*token.json
 !*_example.ini
 
 bills

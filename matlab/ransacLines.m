@@ -1,4 +1,4 @@
-function [group, model, dist, model_txt] = ransacLines(x, y, numLines, distThresh, numIter)
+function [group, model, distance, txt] = ransacLines(x, y, numLines, distThresh, numIter)
 % Fit multiple straight lines to x,y data using RANSAC and vertical
 % ditance. Second pass assigns every point to the closest detected line.
 %   group = ransacLines(x, y, numLines, distThresh, numIter)
@@ -17,9 +17,8 @@ function [group, model, dist, model_txt] = ransacLines(x, y, numLines, distThres
 %                index (1..numLines) to which point (x(i),y(i)) belongs.
 %   model      - Cell array of fitted line models. Each entry is a
 %                [slope intercept] pair from POLYFIT for the detected line.
-%   dist       - Distance of each point to the closest line.
-%   model_txt  - Model expressed as text, eg {'y=0.181521x+1.12147';...}
-
+%   distance   - Distance of each point to the closest line.
+%   txt        - Model expressed as text, eg {'y=0.181521x+1.12147';...}
 %
 % Method:
 % - RANSAC (Random Sample Consensus) repeatedly samples two random points,
@@ -81,21 +80,21 @@ end
 model = model(i);
 
 % Second pass - assign every point to the closest line
-dist = zeros(n, numel(model));
+distance = zeros(n, numel(model));
 for k = 1 : numel(model)
-    dist(:, k) = y(:) - polyval(model{k}, x(:));
+    distance(:, k) = y(:) - polyval(model{k}, x(:));
 end
-[dist, group] = min(abs(dist), [], 2);
+[distance, group] = min(abs(distance), [], 2);
 
 % Third pass: refit each group (ignore outliers)
-inlier = abs(dist) < distThresh; % ignore outliers
+inlier = abs(distance) < distThresh; % ignore outliers
 for k = 1:numel(model)
     idx = group == k; % points assigned to this group
     model{k} = polyfit(x(idx & inlier), y(idx & inlier), 1); % refit line
 end
 
 if nargout > 3
-    model_txt = cellfun(@(x)sprintf('y=%.8gx%+.8g', x), model, 'UniformOutput', 0);
+    txt = cellfun(@(x)sprintf('y=%.8gx%+.8g', x), model, 'UniformOutput', 0);
 end
 
 end

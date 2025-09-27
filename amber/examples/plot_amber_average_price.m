@@ -1,6 +1,6 @@
 %% Inputs
 span = {'2024-08-01' '2025-07-31'};
-tariff = 'RTOU'; %'RTOU' 'RELE2W'
+tariff = 'RTOU_B'; %'RTOU' 'RELE2W'
 state = "SA";
 
 %% Get data

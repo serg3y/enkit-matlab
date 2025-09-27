@@ -15,9 +15,10 @@
 % rms(T.RTOU_B - T.buy_price) % same
 % rms(T.RTOU_S - T.sell_price) % same
 
-%% Load data
-% Price - AEMO RTOU calculated
-switch -2
+%% Load data 
+% Prices - AEMO spot > RTOU calculated
+switch -3
+    case -3,span = {'2024-03-28' '2025-03-29'}; % Andrew
     case -2,span = {'2024-12-01' '2025-08-31'}; % Serge
     case -1,span = {'2024-09-01' '2025-08-31'}; % Jenka
     case 1, span = {'2024-12-01' '2024-12-29'};
@@ -35,39 +36,32 @@ T1.buy_price  = tariffs('RTOU_B', T1.start, T1.spot); % predict
 T1.sell_price = tariffs('RTOU_S', T1.start, T1.spot);
 
 % Usage - SAPN
-switch 3
-    case 1, folder = 'Serge';  curtailment = false; controledLoad = 0;
-    case 2, folder = 'Andrew'; curtailment = false; controledLoad = 1;
-    case 3, folder = 'Jenka';  curtailment = true; controledLoad = 0;
+switch 2
+    case 1, folder = 'Serge';  curtailment = false;
+    case 2, folder = 'Andrew'; curtailment = false; % 2023-03-30 to 2025-03-29
+    case 3, folder = 'Jenka';  curtailment = true;
 end
 T2 = nem12read(fullfile('D:\MATLAB\enkit\sapn\data', folder, '*.csv'));
+try 
+    T2.buy_kwh = T2.buy_kwh + T2.buy2_kwh;
+    T2.buy2_kwh = [];
+end
 T2.start = dateshift(T2.start, 'start', 'second');
 
 % Join
 T = innerjoin(T1, T2, 'Keys', 'start');
-assert(size(T1,1)==size(T,1), 'Time precission errors')
+assert(isscalar(unique(diff(T.start))), 'Time precission errors')
 [T.tod, T.date] = timeofday2(T.start);
 [i, g] = findgroups(T.date);
 
-% Cost components
+% Cost
 T.buy_cost = T.buy_kwh .* T.buy_price;
-if controledLoad
-    T.buy2_cost = T.buy2_kwh .* T.buy2_price;
-end
 T.sell_cost = T.sell_kwh .* T.sell_price;
-
-% Curtailment
 if curtailment
-    T.sell_cost(T.sell_price<0) = 0;
+    T.sell_cost(T.sell_price<0) = 0; % Curtailment
     T.sell_kwh(T.sell_price<0) = 0;
 end
-
-% Net cost
-if controledLoad
-    T.cost = T.buy_cost + T.buy2_cost - T.sell_cost;
-else
-    T.cost = T.buy_cost - T.sell_cost;
-end
+T.cost = T.buy_cost - T.sell_cost; % Net cost
 
 % Predict Amber bill
 D = groupsummary(T, 'date', @(x)sum(x), {'buy_kwh' 'buy_cost' 'sell_kwh' 'sell_cost'});
@@ -107,7 +101,7 @@ BillTotal = sum(D.DailyTotal);
 clc
 fprintf('User: %s\n', folder)
 fprintf('Curtailing: %s\n', string(curtailment))
-fprintf('Period: %s - %s  (%g days)\n', span{:}, days(diff(datetime(span))))
+fprintf('Period: %s - %s  (%g days)\n', T.start([1 end]), round(days(diff(T.start([1 end])))))
 if 1
     fprintf('%-16s%9.2f\n','Usage (kWh)' ,     Usage)
     fprintf('%-16s%9.2f\n','Cost ($)',         Cost)
@@ -139,19 +133,9 @@ else
 end
 
 %% Plot
-plot_style = {
-    'Buy'  'buy_cost'  'buy_kwh'  'buy_cost'  cold2hot [1.0 0.3 0.3] [0.3 1.0 0.3]
-    'Sell' 'sell_cost' 'sell_kwh' 'sell_cost' hot2cold [0.3 1.0 0.3] [1.0 0.3 0.3]
-    'Buy2' 'buy2_cost' 'buy2_kwh' 'buy2_cost' cold2hot [1.0 0.3 0.3] [0.3 1.0 0.3]};
-
-if ~controledLoad
-    plot_style(3, :) = [];
-end
-
 fig(1, 'dark', 'handy')
-for k = 1:size(plot_style, 1)
-    myplot(T, k, size(plot_style, 1), plot_style{k, :})
-end
+myplot(T, 1, 2, 'Buy',  'buy_cost',  'buy_kwh',  'buy_cost',  cold2hot, [1.0 0.3 0.3], [0.3 1.0 0.3])
+myplot(T, 2, 2, 'Sell', 'sell_cost', 'sell_kwh', 'sell_cost', hot2cold, [0.3 1.0 0.3], [1.0 0.3 0.3])
 linkallaxes
 figsave(1, ['predicted_amber_charges_' folder '.png'], [1600 1000])
 

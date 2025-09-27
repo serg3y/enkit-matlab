@@ -3,16 +3,17 @@
 % Remarks:
 % - RRP is the wholesale spot price is $/MWh (exGST)
 % - RRP is converted to spot price, for convenience, in c/kWh (incGST):
-%   spot = RRP / 10 * 1.1
-% - time is the start time of the each interval
+%   spot_price = RRP / 10
+% - 'time' is the start time of the each interval
 % - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
 % - See tariffs.m to calculate final consumer prices.
 %
 % Example: 
 %   T = aemo().getPrice('SA', {'2024-07-01' 0})
-%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'}, 5) % downsample
+%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'}, 30) % downsample
+%   https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_202509_sa1.csv
 %
-% Source:
+% Reference:
 %   https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
 %
 % See also: tariffs, README.txt
@@ -31,62 +32,57 @@ classdef aemo
             end
         end
 
-        function T = getPrice(obj, region, span, rez, fields)
+        function T = getPrice(obj, region, span, fields)
             % Get AEMO price (and demand) data.
 
-            % AEMO data comes in one month blocks, list required months
+            % Defaults
+            if nargin<4 || isempty(cellstr(fields)), fields = {}; end
+
+            % AEMO data comes in monthly files, find required files
             span = [checkdate(span{1}, '+1000') checkdate(span{2}, '+1000')];
-            month1 = dateshift(span(1), 'start', 'month');
-            month2 = dateshift(span(2), 'start', 'month');
-            months = month1 : calmonths(1) : month2;
+            months  = dateshift(span(1), 'start', 'month') : calmonths(1) : dateshift(span(2), 'start', 'month');
 
             % Read
             region = upper(region);
             T = arrayfun(@(x)obj.getPrice1(region, x), months, 'UniformOutput', false);
             T = vertcat(T{:});
 
-            % Insert 'start' and 'spot' columns
-            ind = T.SETTLEMENTDATE >= datetime('2021-10-01', 'TimeZone', '+1000');
-            start = T.SETTLEMENTDATE - minutes(ind*5 + ~ind*30); % Start time of each period
-            spot = (T.RRP/10) * 1.1; % Convert $/MWh exGST > c/kWh incGST
-            T = addvars(T, start, spot, 'Before', 1);
+            % Insert 'time' and 'spot_price' columns
+            cutover = datetime(2021, 10, 1, 'TimeZone', '+1000');
+            period  = 30 - 25*(T.SETTLEMENTDATE >= cutover); % 30 before cutover, 5 after
+            time = T.SETTLEMENTDATE - minutes(period); % Start time of each period
+            spot = T.RRP/10; % Convert $/MWh to c/kWh
+            T = addvars(T, time, spot, 'Before', 1);
 
-            % Filter on time
-            T = T(T.start >= span(1) & T.start < span(2) + 1, :);
-            T = sortrows(T, 'start'); % Ensure time is sorted
+            % Filter and sort time
+            T = T(T.time >= span(1) & T.time < span(2) + 1, :);
+            T = sortrows(T, 'time'); % Ensure time is sorted
 
-            % Resample
-            if nargin>3 && ~isempty(rez)
-                if nargin < 5
-                    fields = T.Properties.VariableNames;
-                end
-
-                % Downsample 'start' to nearest rez-minute mark
-                T.start = T.start - minutes(mod(minute(T.start), rez));
-
-                % Compute means for numeric variables
-                t1 = groupsummary(T, 'start', @mean, intersect({'spot' 'TOTALDEMAND' 'RRP'}, fields));
-                t1 = renamevars(t1, t1.Properties.VariableNames, strrep(t1.Properties.VariableNames, 'fun1_', ''));
-                t1 = removevars(t1, 'GroupCount');
-
-                % Get last values for categorical variables
-                if ~isempty(intersect({'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields))
-                    [~, ind] = unique(T.start, 'last');
-                    t2 = T(ind, intersect({'start' 'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields));
-                    T = outerjoin(t1, t2, 'Keys', 'start', 'MergeKeys', true);
-                else
-                    T = t1;
-                end
-
-                % Reorder
-                T = movevars(T, fields);
-
-            elseif nargin>4
-
-                % Select a subset of fields and reorder
-                T = T(:, fields);
+            % Select fields if requested
+            if ~isempty(fields)
+                T = T(:, ['time' cellstr(fields)]);
             end
+        end
 
+        function T = resample(~, T, rez)
+            fields = T.Properties.VariableNames;
+
+            % Downsample 'start' to nearest rez-minute mark
+            T.time = T.time - minutes(mod(minute(T.time), rez));
+
+            % Compute means for numeric variables
+            t1 = groupsummary(T, 'start', @mean, intersect({'spot' 'TOTALDEMAND' 'RRP'}, fields));
+            t1 = renamevars(t1, t1.Properties.VariableNames, strrep(t1.Properties.VariableNames, 'fun1_', ''));
+            t1 = removevars(t1, 'GroupCount');
+
+            % Get last values for categorical variables
+            if ~isempty(intersect({'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields))
+                [~, ind] = unique(T.time, 'last');
+                t2 = T(ind, intersect({'time' 'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields));
+                T = outerjoin(t1, t2, 'Keys', 'time', 'MergeKeys', true);
+            else
+                T = t1;
+            end
         end
 
         function T = getPrice1(obj, region, month)
@@ -119,7 +115,7 @@ classdef aemo
                     error('something went wront')
                 else
                     txt = fileread(path);
-                    if startsWith(txt,'<')
+                    if startsWith(txt, '<')
                         delete(path)
                         error('%s', txt)
                     end

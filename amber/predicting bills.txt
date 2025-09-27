@@ -1,0 +1,35 @@
+Inputs:
+wholesale_rrp_dollars_per_mwh[t] = AEMO recommended retail price ($/MWh) at interval t
+amber_price_markup_factor = Amber's retail energy price markup costs, 1.1 (coef)
+customer_usage_kwh[t] = customer consumption (kWh) at interval t
+customer_export_kwh[t] = customer export (kWh) at interval t
+loss_factor = network loss multiplier, ≥1 (coeficient)
+amber_margin_cents_per_kwh[t] = additional retailer margin (cents per kWh)
+network_charge_cents_per_kwh[t] = SAPN network charge (cents per kWh) at interval t
+network_charge_cents_per_day = SAPN network daily charge (cents per day)
+amber_charge_cents_per_day = standing charge per day (cents per day)
+billing_days = number of days in the billing period
+export_credit_cents_per_kwh[t] = feed-in tariff or solar sponge credit (cents per kWh)
+gst_rate = 0.10
+
+Equations:
+1. Amber spot price (ex GST)
+amber_spot_price_cents_per_kwh[t] = wholesale_rrp_dollars_per_mwh[t] * 100 / 1000 * amber_price_markup_factor 
+
+2. Amber energy price:
+amber_energy_price_cents_per_kwh[t] = amber_spot_price_cents_per_kwh[t] * loss_factor + amber_margin_cents_per_kwh[t]
+
+3. Total energy and network charge:
+total_energy_and_network_charge_cents = sum( customer_usage_kwh[t] * (amber_energy_price_cents_per_kwh[t] + network_charge_cents_per_kwh[t]))
+
+4. Total export credit:
+total_export_credit_cents = sum( customer_export_kwh[t] * export_credit_cents_per_kwh[t] )
+
+5. Subtotal (ex GST):
+subtotal_before_gst_cents = total_energy_and_network_charge_cents - total_export_credit_cents + (network_charge_cents_per_day + amber_charge_cents_per_day) * billing_days 
+
+6. GST amount:
+gst_amount_cents = gst_rate * subtotal_before_gst_cents
+
+7. Predicted total bill (inc GST):
+predicted_bill_cents = subtotal_before_gst_cents + gst_amount_cents
