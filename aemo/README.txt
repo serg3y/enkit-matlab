@@ -13,6 +13,7 @@ Remarks:
  - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
 
 Example data:
+  https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_202501_sa1.csv
   REGION,SETTLEMENTDATE,TOTALDEMAND,RRP,PERIODTYPE
   SA1,2025/01/01 00:05:00,1379.47,141.48,TRADE
   SA1,2025/01/01 00:10:00,1367.61,136.59,TRADE
