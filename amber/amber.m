@@ -566,7 +566,7 @@ classdef amber
             end
 
             % List all data files
-            filt = fullfile(obj.datafold, 'data', sprintf('forecast_%s_%gmin', obj.state, rez), 'json', '*.json');
+            filt = fullfile(obj.datafold, sprintf('forecast_%s_%gmin', obj.state, rez), 'json', '*.json');
             all_files = dir(filt);
             assert(~isempty(all_files), 'No data files matching "%s"', filt)
             
@@ -576,7 +576,7 @@ classdef amber
             T = [];
             for day = checkdate(span{1}) : checkdate(span{2})
 
-                parquet = fullfile(obj.datafold, 'data', sprintf('forecast_%s_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
+                parquet = fullfile(obj.datafold, sprintf('forecast_%s_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
 
                 if isfile(parquet)
                     t = datetime(dir(parquet).date);
