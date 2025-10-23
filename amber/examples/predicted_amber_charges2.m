@@ -17,33 +17,43 @@
 
 %% Load data 
 
-switch 8
+%bill = 'Jenka 4'; sapn_folder = 'Jenka'; curtailment = true; buy_tariff = 'amber_rtou_buy'; sell_tariff = 'amber_rtou_sell';
+bill = 'Jenka 1'; sapn_folder = 'Jenka'; curtailment = true; buy_tariff = 'Origin JS buy'; sell_tariff = 'Origin JS sell';
+
+switch bill
     case -3,span = {'2024-03-28' '2025-03-29'}; % Andrew
     case -2,span = {'2024-12-01' '2025-08-31'}; % Serge
     case -1,span = {'2024-09-01' '2025-08-31'}; % Jenka
-    case 1, span = {'2024-12-01' '2024-12-29'}; % Serge amber bill periods
-    case 2, span = {'2024-12-30' '2025-01-29'};
-    case 3, span = {'2025-01-30' '2025-02-27'};
-    case 4, span = {'2025-02-28' '2025-03-29'};
-    case 5, span = {'2025-03-30' '2025-04-29'};
-    case 6, span = {'2025-04-30' '2025-05-29'};
-    case 7, span = {'2025-05-30' '2025-06-29'};
-    case 8, span = {'2025-06-30' '2025-07-29'};
-    case 9, span = {'2025-07-30' '2025-08-29'};
+        
+        % Jenka (Origin actaul|sim vs Amber sim)
+    case 'Jenka 1', span = {'2024-09-21' '2024-12-20'}; %  26.24 + 75 = 101.24|126.96  vs  262.75
+    case 'Jenka 2', span = {'2024-12-21' '2025-03-20'}; % 164.87 + 75 = 239.87|264.91  vs  428.08
+    case 'Jenka 3', span = {'2025-03-21' '2025-06-20'}; % 259.82 + 75 = 334.82|408.57  vs  427.01
+    case 'Jenka 4', span = {'2025-06-21' '2025-09-20'}; % 548.60 + 75 = 623.60|624.35  vs  667.52
+
+        % Serge
+    case 'Serge 1', span = {'2024-12-01' '2024-12-29'};
+    case 'Serge 2', span = {'2024-12-30' '2025-01-29'};
+    case 'Serge 3', span = {'2025-01-30' '2025-02-27'};
+    case 'Serge 4', span = {'2025-02-28' '2025-03-29'};
+    case 'Serge 5', span = {'2025-03-30' '2025-04-29'};
+    case 'Serge 6', span = {'2025-04-30' '2025-05-29'};
+    case 'Serge 7', span = {'2025-05-30' '2025-06-29'};
+    case 'Serge 8', span = {'2025-06-30' '2025-07-29'};
+    case 'Serge 9', span = {'2025-07-30' '2025-08-29'};
 end
 
 % Convert AEMO rrp > Amber RTOU price
 T1 = aemo().getPrice('SA', span, 'rrp');
-T1.buy_price  = tariffs('amber_rtou_buy', T1.time, T1.rrp); % predict
-T1.sell_price = tariffs('amber_rtou_sell', T1.time, T1.rrp);
+T1.buy_price  = tariffs(buy_tariff, T1.time, T1.rrp); % predict
+T1.sell_price = tariffs(sell_tariff, T1.time, T1.rrp);
 
-% Usage - SAPN
-switch 1
-    case 1, folder = 'Serge';  curtailment = false;
-    case 2, folder = 'Andrew'; curtailment = false; % 2023-03-30 to 2025-03-29
-    case 3, folder = 'Jenka';  curtailment = true;
+% SAPN Usage
+switch sapn_folder
+    case 'Serge',  sapn_folder = 'Serge';  curtailment = false;
+    case 'Andrew', sapn_folder = 'Andrew'; curtailment = false; % 2023-03-30 to 2025-03-29
 end
-T2 = nem12read(fullfile('D:\MATLAB\enkit\sapn\data', folder, '*.csv'));
+T2 = nem12read(fullfile('D:\MATLAB\enkit\sapn\data', sapn_folder, '*.csv'));
 try 
     T2.buy_kwh = T2.buy_kwh + T2.buy2_kwh;
     T2.buy2_kwh = [];
@@ -101,7 +111,7 @@ BillTotal = sum(D.DailyTotal);
 
 %
 clc
-fprintf('User: %s\n', folder)
+fprintf('User: %s\n', sapn_folder)
 fprintf('Curtailing: %s\n', string(curtailment))
 fprintf('Period: %s - %s  (%g days)\n', T.time([1 end]), round(days(diff(T.time([1 end])))))
 
@@ -117,21 +127,23 @@ fprintf('%-16s%9.2f\n','Credits (kWh)',    Credits)
 fprintf('%-16s%9.2f\n','AvgRate (c/kWh)',  SellRate)
 fprintf('%-16s%9.2f\n','Bill Total ($)',   BillTotal)
 
-fprintf('%.4f\n', Usage)
-fprintf('%.4f\n', BuyRate)
-fprintf('%.4f\n', Cost)
-fprintf('%.4f\n', Supply)
-fprintf('%.4f\n', 0)
-fprintf('%.4f\n', AmberFee)
-fprintf('%.4f\n', BuyGST)
-fprintf('%.4f\n', ChargesTotal)
-fprintf('%.4f\n', Export)
-fprintf('%.4f\n', SellRate)
-fprintf('%.4f\n', Credits)
-fprintf('%.4f\n', 0)
-fprintf('%.4f\n', SellGST)
-fprintf('%.4f\n', Credits)
-fprintf('%.4f\n', BillTotal)
+if 0
+    fprintf('%.4f\n', Usage)
+    fprintf('%.4f\n', BuyRate)
+    fprintf('%.4f\n', Cost)
+    fprintf('%.4f\n', Supply)
+    fprintf('%.4f\n', 0)
+    fprintf('%.4f\n', AmberFee)
+    fprintf('%.4f\n', BuyGST)
+    fprintf('%.4f\n', ChargesTotal)
+    fprintf('%.4f\n', Export)
+    fprintf('%.4f\n', SellRate)
+    fprintf('%.4f\n', Credits)
+    fprintf('%.4f\n', 0)
+    fprintf('%.4f\n', SellGST)
+    fprintf('%.4f\n', Credits)
+    fprintf('%.4f\n', BillTotal)
+end
 
 
 %% Plot
@@ -139,7 +151,7 @@ fig(1, 'dark', 'handy')
 myplot(T, 1, 2, 'Buy',  'buy_cost',  'buy_kwh',  'buy_cost',  cold2hot, [1.0 0.3 0.3], [0.3 1.0 0.3])
 myplot(T, 2, 2, 'Sell', 'sell_cost', 'sell_kwh', 'sell_cost', hot2cold, [0.3 1.0 0.3], [1.0 0.3 0.3])
 linkallaxes
-figsave(1, ['predicted_amber_charges_' folder '.png'], [1600 1000])
+figsave(1, ['predicted_amber_charges_' sapn_folder '.png'], [1600 1000])
 
 %%
 function myplot(T, N, M, name, price, amount, cost, c1, c2, c3)

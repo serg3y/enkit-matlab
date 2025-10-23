@@ -1,5 +1,5 @@
 function h = plotsteps(ax, x, y, color, name, fillval, varargin)
-% Plot a line wit steps
+% Plot a line with steps
 %   h = plotsteps(ax, x, y, color, name, varargin)
 
 % Defaults
