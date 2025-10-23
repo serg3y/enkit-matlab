@@ -27,6 +27,7 @@ while true
         download_amber_forecast_once(state, siteId, token, [12 12],  5); % Download ±1 hr @ 5 min
     catch ex
         fprintf(2, '%s\n', ex.message) % Print errors to screen
+        beep
     end
 end
 
