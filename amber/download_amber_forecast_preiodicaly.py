@@ -5,7 +5,7 @@
 # - File name is NEM time (+1000) at start of download, e.g.
 #     data/forecast_sa_30min/json/20250403_013132.json
 
-import os, re, sys, time, random, datetime, subprocess
+import os, re, sys, time, random, datetime, subprocess, winsound
 
 data_fold = os.path.dirname(os.path.abspath(__file__))
 txt = open(os.path.join(data_fold, 'amber.ini')).read()
@@ -41,6 +41,7 @@ while True:
     # Initiate downloads
     try:
         download_amber_forecast_once(state, siteId, token, [48, 48], 30)  # Download ±24 hr @ 30 min
-        download_amber_forecast_once(state, siteId, token, [12, 144], 5)   # Download ±1 hr @ 5 min
+        download_amber_forecast_once(state, siteId, token, [12, 144], 5)  # Download ±1 hr @ 5 min
     except Exception as ex:
         print(ex, file=sys.stderr)  # Print errors to screen
+        winsound.Beep(400, 200)
