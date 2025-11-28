@@ -8,17 +8,17 @@ fold = 'serge';
 rez = 30;
 
 % Load data
-T = nem12read(fullfile('sapn', fold), [], rez, '+10');
+T = sapn().read(fullfile('sapn', fold), [], rez, '+10');
 
 t = amber().getPrices({'2024-12-01' '2025-08-18'}, rez);
 T = innerjoin(T, t, 'Keys', 'start');
-[T.time, T.date] = timeofday2(T.start);
+[T.time, T.date] = timeofdaylocal(T.start);
 T.time.Format = 'hh:mm';
 T.buy_cost = (T.buy_price .* T.buy_amount)/100;
 T.sell_cost = (T.sell_price .* T.sell_amount)/100;
 
 %% Plot
-fig(1, 'dark', 'handy')
+figmode(1, 'dark', 'handy')
 list = ["buy" "sell"];
 
 for k = 1:numel(list)

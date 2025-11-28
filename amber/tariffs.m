@@ -1,9 +1,7 @@
-function [out, daily] = tariffs(tariff, time, spot)
-% Calculates SAPN and Amber fees or adds fees to provided spot price.
-%   feestable = tariffs()                    - plot summary
-%   feestable = tariffs(tariff)              - plot summary
-%   fees      = tariffs(tariff, time)        - fees at given time
-%   price     = tariffs(tariff, time, spot)  - final consumer price
+function [buy, sell, supply] = tariffs(tariff, time, rrp)
+% Gets provider fees, optionaly can add spot price (inc GST).
+%   [buy, sell, supply] = tariffs(tariff, time)    - fees at given time
+%   [buy, sell, supply] = tariffs(tariff, time, rrp)  - final consumer price
 %
 % Remarks:
 % - Tariff and fees were derived by analysing Amber price history
@@ -12,16 +10,17 @@ function [out, daily] = tariffs(tariff, time, spot)
 %   https://www.sapowernetworks.com.au/public/download.jsp?id=328119
 %   RTOU tariff only = [18.79 7.56 3.81] (c/kWh exGST)
 %     = ([18.79 7.56 3.81] + X) * 1.1
-%   Where X is derived to be 4.4502c, composed of: hedging (1.5c) + Carbon
+%   Where X was derived to be 4.4502c, composed of: hedging (1.5c) + Carbon
 %     offset (0.22c), market charges (0.47c), certificates (2.36c)  [Rob]
 %
-% Sammary:
-%   spot = (RRP / 10) * 1.1
-%   price = spot * 1.1105195 + (tariff + 4.4502) * 1.1
+% Example Equation:
+%   rrp = (RRP / 10) * 1.1
+%   spot = rrp * 1.1105195 + (tariff + 4.4502) * 1.1
 %
 % Example:
-%   t = datetime(2025, 7, 2) + (0:0.5:24)/24
-%   buy_price = tariffs('RTOU_B', t) % c/kWh (inc GST)
+%   time = datetime('2025-06-30') + hours(0:0.5:47.5)
+%   [buy_price, sell_price, supply] = tariffs('amber rtou', time)
+%   plotsteps(gca, time, buy_price)
 %
 % Links:
 %   https://www.sapowernetworks.com.au/public/download.jsp?id=328119 (2024-25)
@@ -30,65 +29,85 @@ function [out, daily] = tariffs(tariff, time, spot)
 %
 % See also: tariff_equation_fitting
 
-% All fee options as a table
+%#ok<*NBRAK2>
+
+% Check inputs
+time = datetime(time, 'TimeZone', 'Australia/Adelaide'); % Ensure input time has same timezone
+step = days(mode(diff(time)));
+
+% Price data
 data = {
-    % https://www.sapowernetworks.com.au/public/download.jsp?id=328119 - Table1 pg4  - 2024 NUoS RTOU: [18.79 7.56 3.81] 
-    % https://www.sapowernetworks.com.au/public/download.jsp?id=333252 - Table9 pg37 - 2025 NUoS RTOU: [18.95 9.47 4.74] 
-    % https://www.aemo.com.au/-/media/files/electricity/nem/security_and_reliability/loss_factors_and_regional_boundaries/2025-26-marginal-loss-factors/distribution-loss-factors-for-the-2025-26.pdf - Table24 pg26 - SA 2024,2025 DLF: 1.1161, 1.0811 
-    "2024-07-01"  "sapn_rtou_buy"    "Australia/Adelaide"  [0  1  6 10 15]'  [18.79    7.56     18.79     3.81    18.79   ]'  1.1161    nan % 57.53 c/day supply
-    "2024-07-01"  "sapn_rtou_sell"   "Australia/Adelaide"   0                  0                                              1/1.1161  nan 
-    "2025-07-01"  "sapn_rtou_buy"    "Australia/Adelaide"  [0     6 10 16]'  [          9.47    18.95     4.74    18.95   ]'  1.0811    nan 
-    "2025-07-01"  "sapn_rtou_sell"   "Australia/Adelaide"  [0       10 16]'  [ 0                         -1        0      ]'  1/1.0811  nan 
-
-    "2024-07-01"  "amber_rtou_buy"   "Australia/Adelaide"  [0  1  6 10 15]'  [25.56422 13.21122 25.56422  9.08622 25.56422]'  1.2215706  nan % amber_fees = sapn_fees * 1.1 + 4.8952
-    "2024-07-01"  "amber_rtou_sell"  "Australia/Adelaide"   0                  0                                              1.1105195  nan %
-    "2024-07-01"  "amber_relew_buy"  "Australia/Adelaide"  [0 10 16 17 21]'  [15.65322  8.20622 15.65322 41.29422 15.65322]'  1.1105195  nan % Residential Electrify Two Way, SAPN report: ([33.09 9.78 3.01] + 4.4502) * 1.1
-    "2025-07-01"  "amber_rtou_buy"   "Australia/Adelaide"  [0     6 10 16]'  [         14.68214 25.11014  9.47914 25.11014]'  1.1876641  nan % SAPN report: [18.95 9.47 4.74] * 1.1 + 4.2651 = [25.1101 14.6821 9.4791]
-    "2025-07-01"  "amber_rtou_sell"  "Australia/Adelaide"  [0       10 16]'  [ 0                         -1        0      ]'  1.0796946  nan % Residential Time of Use Sell 2025
-
-    "2024-07-01"  "RTOU_B"           "Australia/Adelaide"  [0  1  6 10 15]'  [25.56422 13.21122 25.56422  9.08622 25.56422]'  1.1105195  nan % SAPN report: [18.79 7.56 3.81] * 1.1 + 4.8952 = [25.5642 13.2112 9.0862]
-    "2024-07-01"  "RTOU_S"           "Australia/Adelaide"   0                  0                                              1.0095632  nan %
-    "2024-07-01"  "RELE2W"           "Australia/Adelaide"  [0 10 16 17 21]'  [15.65322  8.20622 15.65322 41.29422 15.65322]'  1.1105195  nan % Residential Electrify Two Way, SAPN report: ([33.09 9.78 3.01] + 4.4502) * 1.1
-    "2025-07-01"  "RTOU_B"           "Australia/Adelaide"  [0     6 10 16]'  [         14.68214 25.11014  9.47914 25.11014]'  1.0796946  nan % SAPN report: [18.95 9.47 4.74] * 1.1 + 4.2651 = [25.1101 14.6821 9.4791]
-    "2025-07-01"  "RTOU_S"           "Australia/Adelaide"  [0 10 16      ]'  [ 0        -1       0                        ]'  0.9815405  nan % Residential Time of Use Sell 2025
-    "2025-07-01"  "RESELE"           "Australia/Adelaide"  [0 10 16 17 21]'  [nan      nan      nan       nan     nan     ]'  nan        nan % Residential Electrify Two Way
-
-    "2024-07-01"  "AGL SK"           "Australia/Adelaide"  [0  1  6 10 15]'  [47.41    34.94    47.41    31.78    47.41   ]'  0          nan
-    "2024-07-01"  "Origin JS sell"   "Australia/Adelaide"   0                 10                                              0          nan
-    "2024-07-01"  "Origin JS buy"    "Australia/Adelaide"  [0  1  6 10 15]'  [55.814   32.626   55.814   27.247   55.814  ]'  0          107.459
-    "2025-07-01"  "Origin JS buy"    "Australia/Adelaide"  [0     6 10 16]'  [         35.233   59.653   29.425   59.653  ]'  0          116.050
+    % https://www.aemo.com.au/-/media/files/electricity/nem/security_and_reliability/loss_factors_and_regional_boundaries/2025-26-marginal-loss-factors/distribution-loss-factors-for-the-2025-26.pdf - Table24 pg26 - SA 2024,2025 DLF: 1.1161, 1.0811
+    "2024-07-01" "sapn rtou"   nan     [ 1  6 10 15] [7.56     18.79     3.81    18.79   ] 1.1161    [0      ] [0     ] 1/1.1161 % https://www.sapowernetworks.com.au/public/download.jsp?id=328119 - Table1 pg4  - 2024 NUoS RTOU: [18.79 7.56 3.81]
+    "2025-07-01" "sapn rtou"   nan     [ 0  6 10 16] [9.47     18.95     4.74    18.95   ] 1.0811    [0 10 16] [0 -1 0] 1/1.0811 % https://www.sapowernetworks.com.au/public/download.jsp?id=333252 - Table9 pg37 - 2025 NUoS RTOU: [18.95 9.47 4.74]
+    "2024-07-01" "amber rtou"  181.247 [ 1  6 10 15] [13.21122 25.56422  9.08622 25.56422] 1.221571  [0      ] [0     ] 1.110520 % supply = (65.77 + 99.00) * 1.1 = 181.2470
+    "2025-07-01" "amber rtou"  190.685 [ 0  6 10 16] [14.68214 25.11014  9.47914 25.11014] 1.187664  [0 10 16] [0 -1 0] 1.079695 % supply = (74.16 + 99.19) * 1.1 = 190.6850
+    "2024-07-01" "origin JS"   107.459 [ 1  6 10 15] [32.626   55.814   27.247   55.814  ] 0         [0      ] [10    ] 0        
+    "2025-07-01" "origin JS"   116.050 [ 0  6 10 16] [35.233   59.653   29.425   59.653  ] 0         [0      ] [10    ] 0        
+    "2000-01-01" "JS"          116.050 [ 0  6 10 16] [35.233   59.653   29.425   59.653  ] 0         [0      ] [10    ] 0        
+    "2024-07-01" "fake AB"     107.459 [ 1  6 10 15] [32.626   55.814   27.247   55.814  ] 0         [0      ] [4     ] 0        
+    "2024-07-01" "amber relew" nan     [10 16 17 21] [8.20622  15.65322 41.29422 15.65322] 1.1105195 [0      ] [nan   ] nan      
+    "2024-07-01" "AGL SK"      nan     [ 1  6 10 15] [34.94    47.41    31.78    47.41   ] 0         [0      ] [nan   ] nan      
     };
 
-T = cell2table(data, 'VariableNames', {'date' 'tariff' 'timezone' 'tod' 'fees' 'scale' 'supply'}); % Form a table
-T.date = datetime(T.date, 'TimeZone', '+10'); % Format start date
+% Make a table
+T = cell2table(data, 'VariableNames', {'date' 'tariff' 'supply' 'buy_tod' 'buy_fees' 'buy_scale' 'sell_tod' 'sell_fees' 'sell_scale'});
+T.date = datetime(T.date, 'TimeZone', '+10');
 
-% Select one or more fee options
-if nargin >= 1
-    T = T(strcmpi(T.tariff, tariff), :);
+% Convert numeric array to cell 
+for f = ["buy_tod" "buy_fees" "sell_tod" "sell_fees"]
+    if isnumeric(T.(f))
+        T.(f) = num2cell(T.(f), 2);
+    end
 end
-if nargin < 2
-    out = T; % Return fee table
-    return
+
+% Select tariff
+T = T(strcmpi(T.tariff, tariff), :);
+if isempty(T)
+    error('Invalid tariff selection: %s', tariff)
 end
 
 % Find fee at specific time
 if nargin >= 2
-    % Select a tariff for each time point
-    time = datetime(time, 'TimeZone', T.timezone(1)); % Convert/set time to have same timezone
-    ti = discretize(time, [T.date; T.date(end) + years(1000)]);
-    
+    % Map each timestamp to a tariff
+    ti = discretize(time, [T.date; T.date(end) + years(100)]);
+
+    % Initialise output
+    n = numel(time);
+    buy = nan(n, 1);
+    sell = nan(n, 1);
+    supply = nan(n, 1);
+
     % Step through tariffs
-    out = nan(size(ti)); % Initialise output
-    for k = 1:max(ti)
-        tod = timeofday2(time(k == ti));
-        ii = discretize(tod, duration([T.tod{k}; 24], 0, 0));
-        out(k == ti) = T.fees{k}(ii); % look up fees
+    for k = unique(ti(~isnan(ti)))'
+        idx = (ti == k);
+        tod = timeofdaylocal(time(idx));
+
+        % Buy fees
+        ii = discretize(tod, hours([T.buy_tod{k} 24]));
+        ii(isnan(ii)) = numel(T.buy_tod{k});
+        buy(idx) = T.buy_fees{k}(ii);
+
+        % Sell fees
+        ii = discretize(tod, hours([T.sell_tod{k} 24]));
+        ii(isnan(ii)) = numel(T.sell_tod{k});
+        sell(idx) = T.sell_fees{k}(ii);
+
+        % Supply charges
+        supply(idx) = T.supply(k) * step;
     end
 end
 
-% Add spot price, if provided by user
+% Add spot price, if provided
 if nargin >= 3
-    out(ti>0) = out(ti>0) + spot(ti>0) .* T.scale(ti(ti>0));
-end
-
+    if ~isempty(rrp) && (ischar(rrp) || isstring(rrp))
+        T2 = aemo().getPrice(rrp, [min(time) max(time) + seconds(1)]);
+        time = dateshift(time, 'star', 'second');
+        [~, ind] = ismember(time, T2.time);
+        rrp = nan(n, 1);
+        valid = ind > 0;
+        rrp(valid) = T2.rrp(ind(valid));
+    end
+    buy(ti>0)  = buy(ti>0)  + rrp(ti>0) .* T.buy_scale(ti(ti>0));
+    sell(ti>0) = sell(ti>0) + rrp(ti>0) .* T.sell_scale(ti(ti>0));
 end

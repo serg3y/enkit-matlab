@@ -1,4 +1,4 @@
-% Amber API cannot handly partial days. This wrapper does same.
+% Amber API cannot handle partial days. This wrapper does same.
 
 % Examples:
 % amber().getSites
@@ -11,12 +11,12 @@
 % "prices" includes forecasts when time span includes future periods
 
 % aims:
-% 1. show saving relative to agl
+% 1. show saving relative to AGL
 % 2. show historic power usage and cost
 % 3. show current usage and cost
 
 % Links
-% SA Power dashbaord: https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard 
+% SA Power dashboard: https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard 
 
 classdef amber
 
@@ -61,212 +61,8 @@ classdef amber
             end
         end
 
-        % function plotPrice(obj, fig, span, source, type, mode)
-        %     if nargin < 5 || isempty(mode)
-        %         mode = "";
-        %     end
-        %     if ~isscalar(type) && isscalar(mode)
-        %         mode = repmat(mode, size(type));
-        %     end
-        % 
-        %     switch source
-        %         case 'sapn_andrew'
-        %             T = nem12read('sapn\andrew');
-        %         case 'sapn_serge'
-        %             T = nem12read('sapn\serge');
-        %         case 'amber_prices_30min'
-        %             T = obj.getData('prices', span, 30);
-        %         case 'amber_prices_5min'
-        %             T = obj.getData('prices', span, 5);
-        %         case 'amber_usage_30min'
-        %             T = obj.getData('usage', span, 30);
-        %         case 'amber_usage_5min'
-        %             T = obj.getData('usage', span, 5);
-        %         otherwise
-        %             error('Unknown source: %s\n',source)
-        %     end
-        % 
-        %     % Prepare figure
-        %     figure(fig), clf
-        %     set(fig, 'WindowStyle', 'docked', 'Color', 'k', 'NumberTitle', 'off', 'Name', num2str(fig))
-        %     plot_y = linspace(0.03, 0.97, numel(type) + 1); % Plot heights
-        % 
-        %     % Plot one axis at a time
-        %     A = []; % Init handles list
-        %     for k = 1:numel(type)
-        % 
-        %         % Setup axis
-        %         a = axes('Position', [0.08 plot_y(end-k) 0.84 plot_y(end-k+1) - plot_y(end-k)], ...
-        %             'Color', 'k', 'XColor', [0.6 0.6 0.6], 'YColor', [0.6 0.6 0.6], 'GridColor', [0.6 0.6 0.6]);
-        %         hold on, grid on, box on, axis tight
-        %         switch k
-        %             case 1, set(a, 'XAxisLocation', 'top')
-        %             case numel(type), set(a, 'XAxisLocation', 'bottom')
-        %             otherwise, a.XRuler.FontSize = 0.01; % no axis
-        %         end
-        % 
-        %         X = T.time;
-        %         switch type(k)
-        % 
-        %             case {'buy_amount' 'sell_amount'  'buy2_amount'}
-        %                 ylabel(regexprep([source; type(k)], {'_' 'amount'}, {' ' '(kwh)'}))
-        %                 X = T.time;
-        %                 Y = T.(type(k));
-        %                 [c, cmap, cstr] = col(type(k));
-        %                 switch mode(k)
-        %                     case "heatmap"
-        %                         plotHeatmap(a, X, Y, cmap)
-        %                     case ""
-        %                         d = dateshift(X, 'time', 'day');
-        %                         y = accumarray(findgroups(d), Y, [], @sum);
-        %                         t = sprintf([cstr '%.2fkwh\n'], sum(y));
-        %                         plotsteps(a, unique(d), y, c, t)
-        %                         legend show
-        %                 end
-        % 
-        %             case {'buy_price' 'sell_price' 'buy2_price'}
-        %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' '(kwh)'}))
-        %                 Y = T.(type(k));
-        %                 c = col(type(k));
-        %                 switch mode(k)
-        %                     case "agl"
-        %                         plotSpread(a, X, Y, X, agl(X, type(k)), c)
-        %                         plotsteps(a, X, Y, c)
-        %                     case "5min"
-        %                         plotSpread(a, X, Y, T2.time, T2.(type(k)), c)
-        %                         plotsteps(a, X, Y, c)
-        %                     case "24hr"
-        %                         X = timeofday(X);
-        %                         plotsteps(a, X, Y, [c 0.2], '', 'linewidth', 0.5)
-        %                         Y = arrayfun(@(x) mean(Y(X == x)), unique(X));
-        %                         X = unique(X);
-        %                         plotsteps(a, X, Y, c)
-        %                     case "heatmap"
-        %                         if type(k) == "sell_price"
-        %                             cmap = rbg;
-        %                         else
-        %                             cmap = flipud(rbg);
-        %                         end
-        %                         plotHeatmap(a, X, Y, cmap)
-        %                     otherwise
-        %                         plotSpread(a, X, Y, X, Y*0 + str2double(mode(k)), c)
-        %                         plotsteps(a, X, Y, c)
-        %                 end
-        % 
-        %             case 'buy_saving'
-        %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
-        %                 T = obj.getData('prices', span, 30);
-        %                 T2 = obj.getData('usage', span, 30);
-        %                 X = T.time;
-        %                 switch mode(k)
-        %                     case ""
-        %                         Y = agl(X, 'buy_price') .* T2.buy_amount;
-        %                         d = dateshift(X, 'time', 'day');
-        %                         y1 = accumarray(findgroups(d), Y, [], @sum)/100 + agl([], 'supply');
-        %                         t = sprintf('\\color[rgb]{1 .2 .2}AGL = $%.2f\n', sum(y1) );
-        %                         plotsteps(a, unique(d), y1, [1 .2 .2], t)
-        % 
-        %                         Y = T.buy_price .* T2.buy_amount;
-        %                         d = dateshift(X, 'time', 'day');
-        %                         y = accumarray(findgroups(d), Y, [], @sum)/100 + amb([], 'supply');
-        %                         t = sprintf('\\color[rgb]{.4 .4 1}Amber = $%.2f\n', sum(y) );
-        %                         plotsteps(a, unique(d), y, [0.2 .2 1], t)
-        % 
-        %                         y3 = y-y1;
-        %                         t = sprintf('\\color[rgb]{.2 1 .2}Saving = $%.2f', sum(y3));
-        %                         plotsteps(a, unique(d), y3, [.2 1 .2], t)
-        % 
-        %                         legend show
-        % 
-        %                     case "heatmap"
-        %                         Y = (T.buy_price - agl(X, 'buy_price')) .* T2.buy_amount;
-        %                         plotHeatmap(a, X, Y, flipud(rbg))
-        %                 end
-        % 
-        %             case 'sell_saving'
-        %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
-        %                 T = obj.getData('prices', span, 30);
-        %                 T2 = obj.getData('usage', span, 30);
-        %                 X = T.time;
-        %                 % Y = (T.sell_price - agl(X,'sell')) .* T2.sell_amount;
-        %                 Y = (T.sell_price ) .* T2.sell_amount;
-        %                 cmap = rbg;
-        %                 plotHeatmap(a, X, Y, cmap)
-        % 
-        %             case 'net_saving'
-        %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
-        %                 T = obj.getData('prices', span, 30);
-        %                 T2 = obj.getData('usage', span, 30);
-        %                 X = T.time;
-        %                 Y = (T.sell_price - agl(X,'sell')) .* T2.sell_amount;
-        %                 cmap = rbg;
-        %                 plotHeatmap(a, X, Y, cmap)
-        % 
-        %             case 'buy_price&sell_price'
-        %                 ylabel 'buy / sell'
-        %                 plotsteps(a, X, T.buy_price, 'r')
-        %                 plotsteps(a, X, T.sell_price, 'b')
-        %                 if mode(k) == "5min"
-        %                     plotSpread(a, X, T.buy_price, T2.time, T2.buy_price, 'r')
-        %                     plotSpread(a, X, T.sell_price, T2.time, T2.sell_price, 'b')
-        %                 end
-        % 
-        %             case {'buy_price_diff' 'sell_price_diff'}
-        %                 ylabel(regexprep(type(k), {'_' 'amount'}, {' ' 'kwh'}))
-        %                 m = strrep(type(k), '_diff', '');
-        %                 Y = T.(m) - agl(X, m);
-        %                 c = col(m);
-        %                 switch mode(k)
-        %                     case '24hr'
-        %                         X = timeofday(X);
-        %                         plotsteps(a, X, Y, [c 0.2], '', 'LineWidth', 0.5)
-        %                         X2 = unique(X);
-        %                         Y2 = arrayfun(@(x) mean(Y(X == x)), X2);
-        %                         plotsteps(a, X2, Y2, c, '', 'LineWidth', 2)
-        %                     case "heatmap"
-        %                         if type(k) == "sell_price"
-        %                             cmap = rbg;
-        %                         else
-        %                             cmap = flipud(rbg);
-        %                         end
-        %                         plotHeatmap(a, X, Y, cmap)
-        %                     otherwise
-        %                         plotsteps(a, X, Y, c)
-        %                 end
-        % 
-        %             case 'renewables'
-        %                 ylabel 'Renewables (%)'
-        %                 plotsteps(a, X, T.renewables, [0 0.5 0])
-        %                 yline(a, 100, 'w--')
-        %                 linkaxes([a a], 'x'), xlim([min(X) max(T.stop)])
-        %                 if mode(k) == "5min"
-        %                     plotSpread(a, X, T.renewables, T2.time, T2.renewables, [0 0.5 0])
-        %                 end
-        %         end
-        %         if mode(k) ~= "heatmap"
-        %             yline(a, 0, 'w--', 'HandleVisibility', 'off')
-        %             ylim(a, ylim(a) + [-5 5])
-        %         end
-        %         A = [A a]; %#ok<AGROW>
-        %     end
-        % 
-        %     ind = arrayfun(@(x)isdatetime(x.XLim), A);
-        %     if any(ind)
-        %         linkaxes(A(ind), 'x')
-        %     end
-        %     ind = arrayfun(@(x)isduration(x.YLim)&isduration(x.YLim), A);
-        %     if any(ind)
-        %         linkaxes(A(ind), 'xy')
-        %     end
-        %     if k == numel(type)
-        %         file = sprintf('plots/%g.png', gcf().Number);
-        %         figsave(gcf, file, [1920 1080])
-        %     end
-        % 
-        % end
-
         function data = getSites(obj)
-            % Download site informaiton
+            % Download site information
             [err, json] = obj.geturl('https://api.amber.com.au/v1/sites');
             assert(~err, '%s', json) % Abort if error
 
@@ -280,11 +76,13 @@ classdef amber
         end
 
         function T = getUsage(obj, span)
-            T = getData(obj, 'usage', span);
+            T = getData(obj, 'usage', span, 5);
         end
-        function T = getPrices(obj, span, varargin)
-            T = getData(obj, 'prices', span, varargin{:});
+        
+        function T = getPrices(obj, span)
+            T = getData(obj, 'prices', span, 5);
         end
+
         function T = getData(obj, type, span, rez)
             % Read or download prices or usage data
             if nargin < 4, rez = []; end  % Use default 5 min resolution
@@ -296,16 +94,13 @@ classdef amber
 
                 % Choose identifier depending on type
                 switch type
-                    case 'usage'
-                        id = obj.nmi;
-                    case 'prices'
-                        id = obj.state;
-                    otherwise
-                        error('Unknown type: %s', type);
+                    case 'usage',  t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
+                    case 'prices', t = sprintf('%s_%s',    type, obj.state);
+                    otherwise, error('Unknown type: %s', type);
                 end
 
                 % Build file path (no extension)
-                file = fullfile(obj.datafold, sprintf('%s_%s', type, id), char(day, 'yyyyMMdd'));
+                file = fullfile(obj.datafold, t, char(day, 'yyyyMMdd'));
                 if ~isfolder(fileparts(file))
                     mkdir(fileparts(file));
                 end
@@ -348,7 +143,7 @@ classdef amber
                 end
 
                 % Convert json to table and store
-                tables{end+1} = obj.readDataFile(type, [file '.json']);
+                tables{end+1} = obj.readDataFile(type, [file '.json']); %#ok<AGROW>
             end
 
             % Combine all tables
@@ -437,10 +232,10 @@ classdef amber
             if iscell(data)
                 for k = 1:numel(data)
                     if isfield(data{k}, 'tariffInformation')
-                        data{k} = rmfield(data{k}, 'tariffInformation'); % privides forecast price, in "prices" and in "usage" endpoints
+                        data{k} = rmfield(data{k}, 'tariffInformation'); % provides forecast price, in "prices" and in "usage" endpoints
                     end
                     if isfield(data{k}, 'advancedPrice')
-                        data{k} = rmfield(data{k}, 'advancedPrice'); % privides forecast price, in "prices" endpoints
+                        data{k} = rmfield(data{k}, 'advancedPrice'); % provides forecast price, in "prices" endpoints
                     end
                     if isfield(data{k}, 'estimate')
                         data{k} = rmfield(data{k}, 'estimate'); % indicates if record is an estimate in in "prices" endpoints
@@ -455,7 +250,7 @@ classdef amber
             % Parse time
             T.startTime = datetime(T.startTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
             T.endTime = datetime(T.endTime, 'InputFormat', 'yyyy-MM-dd''T''HH:mm:ss''Z''', 'Format','yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
-            T.startTime = dateshift(T.startTime, 'start', 'minute'); % Round time to neares minute
+            T.startTime = dateshift(T.startTime, 'start', 'minute'); % Round time to nearest minute
 
             % Replace endTime with duration
             T.duration = minutes(T.endTime-T.startTime);
@@ -474,7 +269,7 @@ classdef amber
                     % Remove junk columns
                     T = T(:, {'startTime' 'duration' 'perKwh' 'spotPerKwh' 'renewables' 'channelType'});
                     
-                    % Use positive values for feedin
+                    % Use positive values for feed-in
                     T.perKwh(T.channelType=="feedIn") = -T.perKwh(T.channelType=="feedIn");
 
                     % Convert channelType from rows to columns
@@ -501,7 +296,7 @@ classdef amber
                     % Remove junk columns
                     T = T(:, {'startTime' 'duration' 'kwh' 'perKwh' 'channelType'});
 
-                    % Use positive values for feedin
+                    % Use positive values for feed-in
                     T.perKwh(T.channelType=="feedIn") = -T.perKwh(T.channelType=="feedIn");
 
                     % Convert channelType from rows to columns
@@ -518,7 +313,7 @@ classdef amber
         function downloadForecastPeriodicaly(obj)
             % Periodically downloads price forecasts, every 5 min.
             %   amber().downloadForecastPeriodicaly
-            % - Downloads 24 hrs @ 30 min data and 1 hr @ 5 min.
+            % - Downloads 24 hrs @ 30 min data and 1 hrs @ 5 min.
             % - Downloads are delayed by 30 sec after the 5 minute mark,
             %   because prices tend to update near the start of the mark.
             % - Downloads are further delayed by a random offset, in the
@@ -597,7 +392,7 @@ classdef amber
 
                     if ~isempty(t)
                         % Remove duplicates
-                        t.forecast = max(t.forecast, duration(0, -rez, 0)); % Treat all historic data equaly
+                        t.forecast = max(t.forecast, duration(0, -rez, 0)); % Treat all historic data equally
                         t = unique(t, 'rows');
 
                         % Filter data on time
@@ -659,7 +454,7 @@ classdef amber
 
             % Format startTime
             T.startTime = datetime(extractBetween(T.startTime, 1, 16), 'InputFormat', 'yyyy-MM-dd''T''HH:mm', 'Format', 'yyyy-MM-dd HH:mm', 'TimeZone', 'UTC');
-            T.startTime.TimeZone = data{1}.nemTime(end-5:end); % Use NEM timezone
+            T.startTime.TimeZone = data{1}.nemTime(end-5:end); % Use NEM time-zone
 
             % Compute forecast period
             t = data{find(cellfun(@(x)x.type == "CurrentInterval", data), 1)}.startTime;
@@ -698,7 +493,7 @@ classdef amber
 
             % Download
             cmd = sprintf('curl -sS -X GET "%s" -H "Authorization: Bearer %s"', url, obj.token); % curl download command
-            fprintf(1, ' %s\n', cmd); % Display comman on screen
+            fprintf(1, ' %s\n', cmd); % Display command
             [err, msg] = system(cmd); % Run command
 
             % Check for errors

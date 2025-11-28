@@ -1,14 +1,31 @@
-function x = checkdate(x, default_timezone)
-% Ensure x is a date.
-if isnumeric(x) && x<1000
-    x = datetime + x; % day is an offset
-elseif isnumeric(x)
-    x = datetime(x, 'ConvertFrom', 'datenum'); % day is datenum
-elseif ~isdatetime(x)
-    x = datetime(x); % day is string
+function t = checkdate(t, tz, roundto)
+% Ensure t is datetime, if needed apply timezone and rounding.
+%   t = checkdate(t)
+%   t = checkdate(t, tz)
+%   t = checkdate(t, tz, roundto)
+
+% Defaults
+if nargin<2, tz = ''; end
+if nargin<3, roundto = ''; end
+
+% Batch
+if iscell(t)
+    t = cellfun(@(x)checkdate(x, tz, roundto), t);
+    return
 end
-x = dateshift(x, 'start', 'day');
-if nargin>1
-    x.TimeZone = default_timezone;
+
+if ischar(t) || isstring(t)
+    t = datetime(t); % text -> datetime
+elseif isnumeric(t)
+    t(t<1000) = now + t(t<1000); %#ok<TNOW1> % offsets -> datenum
+    t = datetime(t, 'ConvertFrom', 'datenum'); % datenum -> datetime
+end
+
+if ~isempty(tz)
+    t.TimeZone = tz;
+end
+
+if ~isempty(roundto)
+    t = dateshift(t, 'start', roundto);
 end
 end

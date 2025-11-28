@@ -68,7 +68,7 @@ T = groupsummary(T, {time_field 'forecast'}, @(x)median(x), value_field);
 T = renamevars(T, T.Properties.VariableNames, strrep(T.Properties.VariableNames, 'fun1_', ''));
 
 %% Plot
-fig(1, 'dark', 'handy')
+figmode(1, 'dark', 'handy')
 margins = [0.1 0.04 0.1 0.06];
 
 for p = 1:numel(value_field)

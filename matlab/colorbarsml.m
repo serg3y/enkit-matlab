@@ -1,8 +1,9 @@
 function h = colorbarsml(label, varargin)
-% Create a small colorbar, and dont  move axis.
+% Create a small colorbar, and dont move axis.
+% h = colorbarsml(label, varargin)
 
 % Turn on colorbar
-% drawnow
+drawnow % without this colorbar width is hard to control
 colorbar off
 ax_pos = get(gca, 'Position'); % Save axis position
 h = colorbar(varargin{:});

@@ -12,7 +12,7 @@ T2 = read_amber_csv({f1 f2 f3}, {'RTOU' 'RTOUCL' 'FIT'}, '+10:00', 'Australia/Ad
 
 % Join
 T = innerjoin(T1, T2, 'Keys', 'start', 'LeftVariables', {'start' 'buy_price' 'tariff_price' 'sell_price'}, 'RightVariables', {'RTOU' 'RTOUCL' 'FIT'});
-[T.time, T.date] = timeofday2(T.start);
+[T.time, T.date] = timeofdaylocal(T.start);
 
 % Diff
 T.dRTOU = T.buy_price - T.RTOU;
@@ -20,13 +20,13 @@ T.dRTOUCL = T.tariff_price - T.RTOUCL;
 T.dFIT = T.sell_price - T.FIT;
 
 %%
-fig(1, 'dark', 'handy')
+figmode(1, 'dark', 'handy')
 plot(T.buy_price, T.RTOU - T.buy_price, '.')
 plot(T.RTOUCL, T.RTOUCL - T.tariff_price, '.')
 plot(T.FIT, T.FIT - T.sell_price, '.')
 
 %% Plot prices
-fig(2, 'dark', 'handy')
+figmode(2, 'dark', 'handy')
 colormap(gcf, flipud(rbg))
 subplot(3,3,1), plotheatmap(T.time, T.date, T.buy_price),    clim([-100 100]), colorbarsml 'Price (cent)'
 subplot(3,3,4), plotheatmap(T.time, T.date, T.RTOU),         clim([-100 100]), colorbarsml 'Price (cent)'

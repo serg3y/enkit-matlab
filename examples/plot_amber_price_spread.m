@@ -30,8 +30,8 @@
 
 rez = 30;
 span = {'2025-01-01' '2025-02-01'};
-value = 'buy_price'; fig(1, 'dark', 'handy')
-% value = 'RTOU2'; fig(2, 'dark', 'handy')
+value = 'buy_price'; figmode(1, 'dark', 'handy')
+% value = 'RTOU2'; figmode(2, 'dark', 'handy')
 timezone = 'Australia/Adelaide';
 
 %% Load data
@@ -42,7 +42,7 @@ T.RTOU2 = (T.spot_price + tariffs(T.start, 'RTOU2'))*1.1105195 + 4.760668;
 
 T.value = T.(value);
 
-[T.time, T.date] = timeofday2(T.start);
+[T.time, T.date] = timeofdaylocal(T.start);
 
 % Prep figure
 colormap(gcf, flipud(rbg))

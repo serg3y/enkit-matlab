@@ -13,7 +13,7 @@ T = T(T.forecast<0, :);
 i = intersect(i,find( T.forecast < 0));
 T = T(i, {'start'  'buy_price' 'sell_price' 'tariff_price'});
 
-fig(1, 'dark', 'handy')
+figmode(1, 'dark', 'handy')
 plot(T.start, T.buy_price)
 
 T = amber().getPrices({'2025-04-03' '2025-04-10'}, 30);
@@ -23,6 +23,6 @@ plot(T.start, T.buy_price)
 %%
 file = amber().downloadForecastOnce([48 0], 30);
 T = amber().readForecastData({-1 1}, 30, 24);
-fig(1, 'dark', 'handy')
+figmode(1, 'dark', 'handy')
 T.start.TimeZone = "Australia/Adelaide";
 plot(T.start, T.buy_price)

@@ -1,15 +1,14 @@
 % Class to download and read Australian Energy Market Operator (AEMO) data.
 %
 % Remarks:
-% - RRP is the wholesale spot price is $/MWh (exGST)
-% - rrp is same in c/kWh: rrp = RRP / 10
-% - time is the start time of the each interval
+% - RRP is the state's Regional Reference Price in $/MWh (exGST)
+% - rrp is the RRP in c/kWh (RRP/10)
+% - time is the start time of each interval
 % - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
-% - Use tariffs.m to convert rrp to final consumer prices.
+% - Use tariffs.m to convert rrp to a 'node specific' "spot prices".
 %
 % Example: 
 %   T = aemo().getPrice('SA', {'2024-07-01' 0})
-%   T = aemo().getPrice('SA', {'2024-07-01' '2025-06-01'}, 30) % downsample
 %   https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_202509_sa1.csv
 %
 % Reference:
@@ -35,11 +34,15 @@ classdef aemo
             % Get AEMO price (and demand) data.
 
             % Defaults
-            if nargin<4 || isempty(cellstr(fields)), fields = {}; end
+            if nargin<4 || isempty(cellstr(fields))
+                fields = {'time' 'rrp'};
+            elseif strcmp(fields, 'all')
+                fields = [];
+            end
 
             % AEMO data comes in monthly files, find required files
-            span = [checkdate(span{1}, '+1000') checkdate(span{2}, '+1000')];
-            months  = dateshift(span(1), 'start', 'month') : calmonths(1) : dateshift(span(2), 'start', 'month');
+            span = checkdate(span, '+10:00');
+            months = dateshift(span(1), 'start', 'month') : calmonths(1) : dateshift(span(2), 'start', 'month');
 
             % Read
             region = upper(region);
@@ -47,30 +50,30 @@ classdef aemo
             T = vertcat(T{:});
 
             % Insert 'time' and 'spot_price' columns
-            cutover = datetime(2021, 10, 1, 'TimeZone', '+1000');
-            period  = 30 - 25*(T.SETTLEMENTDATE >= cutover); % 30 before cutover, 5 after
+            cutover = datetime(2021, 10, 1, 'TimeZone', '+10:00');
+            period = 30 - 25*(T.SETTLEMENTDATE >= cutover); % 30 before cutover, 5 after
             time = T.SETTLEMENTDATE - minutes(period); % Start time of each period
             rrp = T.RRP/10; % Convert $/MWh to c/kWh
             T = addvars(T, time, rrp, 'Before', 1);
 
             % Filter and sort time
-            T = T(T.time >= span(1) & T.time < span(2) + 1, :);
+            T = T(T.time >= span(1) & T.time < span(2), :);
             T = sortrows(T, 'time'); % Ensure time is sorted
 
             % Select fields if requested
             if ~isempty(fields)
-                T = T(:, ['time' cellstr(fields)]);
+                T = T(:, cellstr(fields));
             end
         end
 
         function T = resample(~, T, rez)
             fields = T.Properties.VariableNames;
 
-            % Downsample 'start' to nearest rez-minute mark
+            % Downsample 'time' to nearest rez-minute mark
             T.time = T.time - minutes(mod(minute(T.time), rez));
 
             % Compute means for numeric variables
-            t1 = groupsummary(T, 'start', @mean, intersect({'rrp' 'TOTALDEMAND' 'RRP'}, fields));
+            t1 = groupsummary(T, 'time', @mean, intersect({'rrp' 'TOTALDEMAND' 'RRP'}, fields));
             t1 = renamevars(t1, t1.Properties.VariableNames, strrep(t1.Properties.VariableNames, 'fun1_', ''));
             t1 = removevars(t1, 'GroupCount');
 

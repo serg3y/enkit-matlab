@@ -1,4 +1,4 @@
-function [h, A, xVec, yVec] = plotheatmap(X, Y, V, accumfun, fillval, alphafun)
+function [h, A, xVec, yVec] = plotheatmap(X, Y, V, accumfun, fillval, alphafun, range, cmap)
 % Plot heatmap and activate data cursor.
 %   plotheatmap(X, Y, V)
 %   plotheatmap(X, Y, V, accumfun, fillval, alphafun)
@@ -6,10 +6,9 @@ function [h, A, xVec, yVec] = plotheatmap(X, Y, V, accumfun, fillval, alphafun)
 %
 % Remarks
 % - Fills missing data, but assumes step size is fixed.
-% - Presumes x,y are provided at the start of an interval.
-%
-% See also: heatmap
+% - Assumes x,y are provided at the start of each interval.
 
+% Defaults
 if nargin<5 || isempty(accumfun)
     accumfun = @sum;
 end
@@ -23,6 +22,15 @@ if nargin<7 || isempty(alphafun)
         alphafun = [];
     end
 end
+immode = nargin>=8 && (~isempty(range) || ~isempty(cmap));
+if immode
+    if isempty(range)
+        range = [min(V(:)), max(V(:))];
+    end
+    if isempty(cmap)
+        cmap = colormap;
+    end
+end
 
 % Infer step size
 xStep = mode(diff(unique(X)));
@@ -33,16 +41,19 @@ xVec = min(X) : xStep : max(X);
 yVec = min(Y) : yStep : max(Y);
 
 % Map X and Y onto indices
-% [~, xi] = ismember(X, xVec);
-% [~, yi] = ismember(Y, yVec);
 xi = round((X - min(X)) / xStep) + 1;
 yi = round((Y - min(Y)) / yStep) + 1;
 
 % Accumulate
 A = accumarray([yi xi], V, [numel(yVec) numel(xVec)], accumfun, fillval);
 
-% Plot
-h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, A);
+% Display
+if immode
+    img = val2img(A, range, cmap); % Convert to array to an RGB image
+    h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, img, 'UserData', A);
+else
+    h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, A);
+end
 
 % Tweak appearance
 axis tight
@@ -52,7 +63,7 @@ if isduration(Y)
 end
 
 % Make NaNs transperant
-if ~isempty(alphafun)
+if ~isempty(alphafun) && ~immode
     alpha(h, alphafun(A));
 end
 
@@ -72,7 +83,11 @@ end
 function txt = dataTip(~, event)
 % Custom data cursor for 2D image-like data
 
-A = event.Target.CData;
+if ~isempty(event.Target.UserData)
+    A = event.Target.UserData;
+else
+    A = event.Target.CData;
+end
 xdata = event.Target.XData;
 ydata = event.Target.YData;
 
@@ -90,5 +105,5 @@ yPos = num2ruler(event.Position(2), event.Target.Parent.YAxis);
 xIdx = discretize(xPos, xEdges);
 yIdx = discretize(yPos, yEdges);
 
-txt = sprintf('v: %.4f\nx: %s\ny: %s', A(yIdx, xIdx), string(xCenters(xIdx)), string(yCenters(yIdx)));
+txt = sprintf('%.4f\nx: %s\ny: %s', A(yIdx, xIdx), string(xCenters(xIdx)), string(yCenters(yIdx)));
 end

@@ -16,13 +16,13 @@ T2 = amber().getPrices(span);
 T = innerjoin(T1, T2); % Join
 
 % Teriff periods use local time, not NEM time
-T.tod = timeofday2(T.time, 'Australia/Adelaide');
+T.tod = timeofdaylocal(T.time, 'Australia/Adelaide');
 
 %% 2. Fit
 [T.i1, ~, ~, buy] = ransacLines(T.rrp, T.buy_price, 3, 0.1, 50);
 [T.i2, ~, ~, sell] = ransacLines(T.rrp, T.sell_price, 3, 0.1, 50);
 
-clf, fig(1, 'dark', 'handy')
+clf, figmode(1, 'dark', 'handy')
 subplot(221), grid on, gscatter(T.rrp, T.buy_price, T.i1), legend(buy), title 'Buy'
 subplot(222), grid on, gscatter(T.rrp, T.sell_price, T.i2), legend(sell), title 'Sell'
 subplot(223), grid on, gscatter(T.tod, T.i1, T.i1), xlabel Time

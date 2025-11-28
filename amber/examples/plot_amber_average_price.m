@@ -1,21 +1,20 @@
 %% Inputs
+tariff_name = 'sapn rtou'; %'RTOU' 'RELE2W'
 span = {'2024-08-01' '2025-07-31'};
-tariff = 'RTOU_B'; %'RTOU' 'RELE2W'
 state = "SA";
 
 %% Get data
-T = aemo().getPrice(state, span, 5, {'start' 'spot'});
-[T.tod, T.date] = timeofday2(T.start);
+T = aemo().getPrice(state, span);
+[T.tod, T.date] = timeofdaylocal(T.time);
 T.month = month(T.date);
 
 %% Spot + Tariff
-g = groupsummary(T, 'tod', @mean, 'spot');
+g = groupsummary(T, 'tod', @mean, 'rrp');
 x = g.tod;
-y_spot = g.fun1_spot;
-y_tariff = tariffs(tariff, g.tod);
+y_tariff = tariffs(tariff_name, g.tod, g.fun1_rrp);
 
-fig(1, 'dark', 'handy')
-plotspread2(gca, x, y_spot + y_tariff, [], [1 1 0], state);
+figmode(1, 'dark', 'handy')
+plotspread2(gca, x, y_tariff, [], [1 1 0], state);
 ylim([-5 75])
 xlim(duration([0 24], 0, 0))
 set(gca, 'XTick', duration(0:4:24, 0, 0))
@@ -27,12 +26,12 @@ legend show location NW
 figsave(gcf, 'plots\sa_average_price_simple.png', [1200 800])
 
 %% Tariff
-g = groupsummary(T, 'tod', @mean, 'spot');
+g = groupsummary(T, 'tod', @mean, 'rrp');
 x = g.tod;
-y_spot = g.fun1_spot;
-y_tariff = tariffs(tariff, g.tod);
+y_rrp = g.fun1_rrp;
+y_tariff = tariffs(tariff_name, g.tod);
 
-fig(1, 'dark', 'handy')
+figmode(1, 'dark', 'handy')
 subplot(221)
 plotspread2(gca, x, y_tariff, [], [0 1 0], 'Tariff')
 ylim([-5 75])
@@ -44,7 +43,7 @@ legend show location NW
 
 % Spot
 subplot(223)
-plotspread2(gca, x, y_spot, [], [1 1 0], 'Spot')
+plotspread2(gca, x, y_rrp, [], [1 1 0], 'rrp')
 ylim([-5 75])
 xlim(duration([0 24], 0, 0))
 set(gca, 'XTick', duration(0:4:24, 0, 0))
@@ -52,9 +51,9 @@ ylabel 'Price (c/kWh)'
 xlabel 'Time of day (+10h)'
 legend show location NW
 
-% Tariff + Spot
+% Fees + Spot
 subplot(222)
-plotspread2(gca, x, y_tariff, y_spot + y_tariff, [1 1 0], 'Tariff');
+plotspread2(gca, x, y_tariff, y_rrp + y_tariff, [1 1 0], 'Tariff');
 plotspread2(gca, x, y_tariff, [], [0 1 0], 'Spot Price');
 ylim([-5 75])
 xlim(duration([0 24], 0, 0))
@@ -65,8 +64,8 @@ legend show location NW
 
 % Spot + Tariff
 subplot(224)
-plotspread2(gca, x, y_spot, y_spot + y_tariff, [0 1 0], 'Tariff');
-plotspread2(gca, x, y_spot, [], [1 1 0], 'Spot');
+plotspread2(gca, x, y_rrp, y_rrp + y_tariff, [0 1 0], 'Tariff');
+plotspread2(gca, x, y_rrp, [], [1 1 0], 'Spot');
 ylim([-5 75])
 xlim(duration([0 24], 0, 0))
 set(gca, 'XTick', duration(0:4:24, 0, 0))
@@ -78,12 +77,12 @@ linkallaxes
 figsave(gcf, 'plots\sa_average_price.png', [800 600])
 
 %% Monthly
-fig(3, 'dark', 'handy')
+figmode(3, 'dark', 'handy')
 
 for m = 1:12
     g = groupsummary(T(month(T.date) == m,:), {'month' 'tod'}, @mean, 'spot');
     x = g.tod;
-    y = g.fun1_spot + tariffs(tariff, g.tod);
+    y = tariffs(tariff, g.tod, g.fun1_spot);
     c = interp1(linspace(-5, 55, 100), jet(100), mean(y)); % interpolate colors
     t = string(datetime(2025, m, 1), 'MMM  ') + round(mean(y),1) + "c";
 

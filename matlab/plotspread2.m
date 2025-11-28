@@ -2,11 +2,15 @@ function h = plotspread2(ax, x, y1, y2, color, name, varargin)
 % Plots a region defined by x,y1,y2.
 %  plotdpread2(ax, x, y1, y2, color, name, varargin)
 
+% Defaults
 if nargin < 4 || isempty(y2), y2 = y1*0; end
 if nargin < 5 || isempty(color)
     color = ax.ColorOrder(mod(ax.ColorOrderIndex - 1, size(ax.ColorOrder, 1)) + 1, :);
 end
 if nargin < 6 || isempty(name), name = ''; end
+
+% Checks
+color = color2rgb(color);
 
 y1 = fillmissing(y1, 'constant', 0);
 y2 = fillmissing(y2, 'constant', 0);

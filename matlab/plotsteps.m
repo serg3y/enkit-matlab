@@ -9,6 +9,8 @@ end
 if nargin < 5 || isempty(name), name = ''; end
 if nargin < 6 || isempty(fillval), fillval = 0; end
 
+color = color2rgb(color);
+
 y = fillmissing(y, 'constant', fillval);
 [X, Y] = makeSteps(x(:), y(:));
 
@@ -21,7 +23,7 @@ if isduration(x)
     Y(diff(j)<0) = NaN;
 end
 
-name = sprintf('\\color[rgb]{%g %g %g}%s', color, name);
+name = sprintf('\\color[rgb]{%g %g %g}%s', color(1:3), name);
 
 h = plot(ax, X(:), Y(:), 'color', color, 'DisplayName', name, varargin{:});
 
