@@ -1,6 +1,8 @@
 *.zip
 *.xls
 *.xlsx
+*.ppt
+*.pptx
 *.json
 *.csv
 *.parquet
@@ -9,6 +11,8 @@
 *.sx2
 *.ini
 *.bat
+cookie.txt
+cookies.txt
 *token.txt
 *token.json
 !*_example.ini
