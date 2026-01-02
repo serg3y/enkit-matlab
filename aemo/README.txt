@@ -22,3 +22,6 @@ Example data:
 
 Source:
   https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
+  
+Other Links:
+  NEM dashboard: https://www.aemo.com.au/Energy-systems/Electricity/National-Electricity-Market-NEM/Data-NEM/Data-Dashboard-NEM

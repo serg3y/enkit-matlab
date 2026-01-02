@@ -1,26 +1,28 @@
-% Class to download and read Australian Energy Market Operator (AEMO) data.
+% Download and read Australian Energy Market Operator (AEMO) statewide
+% wholesale electricity PRICE and DEMAND data.
 %
 % Remarks:
-% - RRP is the state's Regional Reference Price in $/MWh (exGST)
-% - rrp is the RRP in c/kWh (RRP/10)
-% - time is the start time of each interval
-% - Sampling period changed from 30 min to 5 minutes on 2021-10-01 00:00
-% - Use tariffs.m to convert rrp to a 'node specific' "spot prices".
+% - AEMO changes sampling from 30 min to 5 minutes on 2021-10-01 00:00
+% - 'RRP' is the state's Regional Reference Price in $/MWh (exGST)
+% - 'rrp' is same but in c/kWh (rrp=RRP/10)
+% - 'time' is the start time of each interval
 %
-% Example: 
-%   T = aemo().getPrice('SA', {'2024-07-01' 0})
-%   https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_202509_sa1.csv
+% Example:
+%   aemo(staleLim=hours(0)).downloadData('SA', {'2024-07-01' 0})
+%   T = aemo().readData('SA', {'2024-07-01' '2024-07-10'})
 %
 % Reference:
 %   https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
-%
-% See also: tariffs, README.txt
+%   https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_202509_sa1.csv
+%   https://www.aemo.com.au/Energy-systems/Electricity/National-Electricity-Market-NEM/Data-NEM/Data-Dashboard-NEM
+
+% Forecast data, both 5 and 30 min:
+% https://www.aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/market-management-system-mms-data/pre-dispatch
 
 classdef aemo
 
     properties
-        datafold = fullfile(fileparts(mfilename('fullpath')), 'data')
-        download = 12/24 % Both a flag to say if downloads are allowed and a threshold to say when a an incomplete file is deemed to be 'stale' (day fraction)
+        dataFold char = fullfile(fileparts(mfilename('fullpath')), 'data')
     end
 
     methods
@@ -30,120 +32,78 @@ classdef aemo
             end
         end
 
-        function T = getPrice(obj, region, span, fields)
-            % Get AEMO price (and demand) data.
+        function downloadData(obj, state, span, staleLim)
+            % Download required month(s) of data to files
+            %   downloadData(state, span, staleLim)
+            if nargin<4 || isempty(staleLim), staleLim = hours(12); end
 
-            % Defaults
-            if nargin<4 || isempty(cellstr(fields))
-                fields = {'time' 'rrp'};
-            elseif strcmp(fields, 'all')
-                fields = [];
+            monthList = unique(dateshift(checkdate(span{1}) : checkdate(span{end}), 'start', 'month'));
+            for month = monthList
+                [file, url] = obj.monthFile(state, month);
+                fprintf(' %s > %s', url, file)
+
+                % Skip if the file exists and is complete or not stale
+                if isfile(file) && (complete(file) || ~stale(file, staleLim))
+                    fprintf('  (skiped, %g b)\n', dir(file).bytes)
+                    continue
+                end
+
+                % Download
+                folder = fileparts(file);
+                if ~isfolder(folder)
+                    mkdir(folder)
+                end
+                websave(file, url);
+                fprintf('  (%g b)\n', dir(file).bytes)
             end
+        end
 
-            % AEMO data comes in monthly files, find required files
-            span = checkdate(span, '+10:00');
-            months = dateshift(span(1), 'start', 'month') : calmonths(1) : dateshift(span(2), 'start', 'month');
-
-            % Read
-            region = upper(region);
-            T = arrayfun(@(x)obj.getPrice1(region, x), months, 'UniformOutput', false);
+        function T = readData(obj, state, span)
+            % Read data
+            fprintf('Reading...\n')
+            monthList = unique(dateshift(checkdate(span{1}, '+10:00') : checkdate(span{end}, '+10:00'), 'start', 'month'));
+            T = cell(numel(monthList), 1); % Preallocate
+            for k = 1:numel(monthList)
+                file = obj.monthFile(state, monthList(k));
+                if isfile(file)
+                    T{k} = readtable(file);
+                end
+            end
             T = vertcat(T{:});
+            
+            if ~isempty(T)
+                % Convert timestamps to datetime
+                T.SETTLEMENTDATE = datetime(T.SETTLEMENTDATE, 'InputFormat', 'yyyy/MM/dd HH:mm:ss', 'Format', 'yyyy-MM-dd HH:mm', 'TimeZone', '+10:00');
 
-            % Insert 'time' and 'spot_price' columns
-            cutover = datetime(2021, 10, 1, 'TimeZone', '+10:00');
-            period = 30 - 25*(T.SETTLEMENTDATE >= cutover); % 30 before cutover, 5 after
-            time = T.SETTLEMENTDATE - minutes(period); % Start time of each period
-            rrp = T.RRP/10; % Convert $/MWh to c/kWh
-            T = addvars(T, time, rrp, 'Before', 1);
+                % Calculate interval start time
+                period = minutes(30 - 25*(T.SETTLEMENTDATE >= datetime(2021, 10, 1, 'TimeZone', '+10:00')));
+                T.time = T.SETTLEMENTDATE - period; % Set the interval start time
 
-            % Filter and sort time
-            T = T(T.time >= span(1) & T.time < span(2), :);
-            T = sortrows(T, 'time'); % Ensure time is sorted
+                % Filter data using time span
+                T = T(T.time >= checkdate(span{1}, '+10:00') & T.time < checkdate(span{end}, '+10:00'), :);
 
-            % Select fields if requested
-            if ~isempty(fields)
-                T = T(:, cellstr(fields));
+                % Reformat data
+                s = upper(state);
+                T = table(T.time, T.RRP/10, T.TOTALDEMAND, 'VariableNames', ["time" s+"_price_ckwh" s+"_usage_mwh"]);
             end
         end
 
-        function T = resample(~, T, rez)
-            fields = T.Properties.VariableNames;
-
-            % Downsample 'time' to nearest rez-minute mark
-            T.time = T.time - minutes(mod(minute(T.time), rez));
-
-            % Compute means for numeric variables
-            t1 = groupsummary(T, 'time', @mean, intersect({'rrp' 'TOTALDEMAND' 'RRP'}, fields));
-            t1 = renamevars(t1, t1.Properties.VariableNames, strrep(t1.Properties.VariableNames, 'fun1_', ''));
-            t1 = removevars(t1, 'GroupCount');
-
-            % Get last values for categorical variables
-            if ~isempty(intersect({'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields))
-                [~, ind] = unique(T.time, 'last');
-                t2 = T(ind, intersect({'time' 'SETTLEMENTDATE' 'REGION' 'PERIODTYPE'}, fields));
-                T = outerjoin(t1, t2, 'Keys', 'time', 'MergeKeys', true);
-            else
-                T = t1;
-            end
-        end
-
-        function T = getPrice1(obj, region, month)
-            % Get one month of AEMO price (and demand) data.
-
-            assert(ismember(region, ["NSW" "QLD" "VIC" "SA" "TAS"]), 'Invalid region, use: "NSW" "QLD" "VIC" "SA" "TAS"')
-            region = lower(region);
-            
-            T = []; % Init
-            file = sprintf('PRICE_AND_DEMAND_%s_%s1.csv', string(month, 'yyyyMM'), region);
-            path = fullfile(obj.datafold, region, file);
-
-            % Abort if month is in future
-            if month > datetime('now', 'TimeZone', '+1000')
-                return
-            end
-
-            % Download if file is missing or stale
-            if obj.download && (~isfile(path) || ~isComplete(path) && isOld(path, obj.download))
-                if ~isfolder(fileparts(path))
-                    mkdir(fileparts(path))
-                end
-                url = ['https://aemo.com.au/aemo/data/nem/priceanddemand/' file];
-                cmd = sprintf('curl -L -sS "%s" > "%s"', url, path);
-                disp(cmd) % Progress
-                err = system(cmd); % Download
-
-                % Check file
-                if err || ~isfile(path)
-                    error('something went wront')
-                else
-                    txt = fileread(path);
-                    if startsWith(txt, '<')
-                        delete(path)
-                        error('%s', txt)
-                    end
-                end
-            end
-            
-            % Read file
-            if isfile(path)
-                opts = detectImportOptions(path);
-                opts = setvaropts(opts, {'REGION' 'PERIODTYPE'}, 'Type', 'string');
-                T = readtable(path, opts);
-                T.SETTLEMENTDATE = datetime(T.SETTLEMENTDATE, 'InputFormat', 'yyyy/MM/dd HH:mm:ss', 'Format', 'yyyy-MM-dd HH:mm', 'TimeZone', '+1000');
-            end
+        function [file, url] = monthFile(obj, state, month)
+            name = sprintf('PRICE_AND_DEMAND_%s_%s1.csv', char(month, 'yyyyMM'), upper(state));
+            file = fullfile(obj.dataFold, upper(state), name);
+            url  = ['https://aemo.com.au/aemo/data/nem/priceanddemand/' name];
         end
     end
 end
 
-function tf = isComplete(file)
+function tf = complete(file)
 fid = fopen(file, 'r');
 fseek(fid, -100, 'eof'); % Read last 100 bytes in file
 txt = fread(fid, Inf, '*char')';
-tf = contains(txt, '01 00:00:00'); % File should end at start of next month
 fclose(fid);
+tf = contains(txt, '01 00:00:00'); % Completed files end with the start of next month
 end
 
-function tf = isOld(file, thresh)
-fileDate = datetime(dir(file).date);
-tf = fileDate + thresh < datetime('now');
+function tf = stale(file, staleLim)
+tf = datetime(dir(file).date) + staleLim < datetime('now');
 end

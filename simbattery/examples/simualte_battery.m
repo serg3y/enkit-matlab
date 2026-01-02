@@ -4,14 +4,14 @@ output_fold = fullfile('D:\MATLAB\enkit\simbattery\examples', scenario_name);
 
 switch scenario_name
     case 'Andrew'
-        usage_data_fold = 'D:\MATLAB\enkit\sapn\data\Andrew';
+        usage_data_fold = 'D:\MATLAB\enkit\nem\data\Andrew';
         analysis_period = ["2024-03-30" "2025-03-29"];
         tariff_list = 'JS';
         battery_capacities = 0:30;
         apply_curtailment = true;
     case 'Jenka'
         % Daily import|export = 7.87|24.07 kWh
-        usage_data_fold = 'D:\MATLAB\enkit\sapn\data\Jenka';
+        usage_data_fold = 'D:\MATLAB\enkit\nem\data\Jenka';
         analysis_period = ["2024-09-13" "2025-09-13"];
         tariff_list = ["JS" "amber rtou"];
         battery_capacities = [0:0.1:2 3:10 12:2:30];
@@ -23,14 +23,14 @@ switch scenario_name
 end
 
 %% Load usage data
-T = sapn().read(usage_data_fold, analysis_period);
+T = nem().read(usage_data_fold, analysis_period);
 [T.tod, T.date] = timeofdaylocal(T.time);
 
 % Add import/export columns
-T.import = T.buy_kwh;
-T.export = T.sell_kwh;
-if hascolumn(T, 'buy2_kwh')
-    T.import = T.import + T.buy2_kwh;
+T.import = T.import_kwh;
+T.export = T.export_kwh;
+if hascolumn(T, 'cl_kwh')
+    T.import = T.import + T.cl_kwh;
 end
 
 %% Simulate

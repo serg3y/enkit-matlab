@@ -50,17 +50,20 @@ A = accumarray([yi xi], V, [numel(yVec) numel(xVec)], accumfun, fillval);
 % Display
 if immode
     img = val2img(A, range, cmap); % Convert to array to an RGB image
-    h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, img, 'UserData', A);
+    h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, img, 'UserData', A, 'Tag', 'heatmap');
 else
-    h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, A);
+    h = imagesc([min(X) max(X)] + xStep/2, [min(Y) max(Y)] + yStep/2, A, 'Tag', 'heatmap');
 end
 
 % Tweak appearance
-axis tight
+ax = gca;
+axis(ax, 'tight')
 if isduration(Y)
-    ax = gca;
     ax.YAxis.TickLabelFormat = 'hh:mm'; % Imporve tick format
 end
+set(ax.YAxis, 'TickDirection', 'out', 'TickLength', [0.002 0], 'LineWidth', 1.5)
+set(ax.XAxis, 'TickDirection', 'out', 'TickLength', [0.002 0], 'LineWidth', 1.5)
+set(ax, 'Tag', 'heatmapaxis')
 
 % Make NaNs transperant
 if ~isempty(alphafun) && ~immode
@@ -72,7 +75,7 @@ xline(xlim, 'color', get(groot, 'DefaultAxesXColor'))
 yline(ylim, 'color', get(groot, 'DefaultAxesXColor'))
 
 % Data cursor
-set(datacursormode(gcf), 'UpdateFcn', @dataTip);
+set(datacursormode(gcf), 'UpdateFcn', @(obj, evt)dataTip(obj, evt));
 
 % Outputs
 if ~nargout
@@ -80,30 +83,38 @@ if ~nargout
 end
 end
 
-function txt = dataTip(~, event)
+function txt = dataTip(~, evt)
 % Custom data cursor for 2D image-like data
 
-if ~isempty(event.Target.UserData)
-    A = event.Target.UserData;
+if evt.Target.Tag ~= "heatmap"
+    % Not heatmap, use default datatip
+    txt = sprintf('X: %g\nY: %g',evt.Position);
+
 else
-    A = event.Target.CData;
+    % Heatmap
+    if ~isempty(evt.Target.UserData)
+        A = evt.Target.UserData;
+    else
+        A = evt.Target.CData;
+    end
+    xdata = evt.Target.XData;
+    ydata = evt.Target.YData;
+
+    [ny, nx] = size(A);
+    xCenters = linspace(xdata(1), xdata(2), nx);
+    yCenters = linspace(ydata(1), ydata(2), ny);
+
+    dx = mode(diff(xCenters));
+    dy = mode(diff(yCenters));
+    xEdges = [xCenters - dx/2, xCenters(end) + dx/2];
+    yEdges = [yCenters - dy/2, yCenters(end) + dy/2];
+
+    xPos = num2ruler(evt.Position(1), evt.Target.Parent.XAxis);
+    yPos = num2ruler(evt.Position(2), evt.Target.Parent.YAxis);
+    xIdx = discretize(xPos, xEdges);
+    yIdx = discretize(yPos, yEdges);
+
+    txt = sprintf('val = %.4f\nx: %s\ny: %s', A(yIdx, xIdx), string(xCenters(xIdx)), string(yCenters(yIdx)));
 end
-xdata = event.Target.XData;
-ydata = event.Target.YData;
 
-[ny, nx] = size(A);
-xCenters = linspace(xdata(1), xdata(2), nx);
-yCenters = linspace(ydata(1), ydata(2), ny);
-
-dx = mode(diff(xCenters));
-dy = mode(diff(yCenters));
-xEdges = [xCenters - dx/2, xCenters(end) + dx/2];
-yEdges = [yCenters - dy/2, yCenters(end) + dy/2];
-
-xPos = num2ruler(event.Position(1), event.Target.Parent.XAxis);
-yPos = num2ruler(event.Position(2), event.Target.Parent.YAxis);
-xIdx = discretize(xPos, xEdges);
-yIdx = discretize(yPos, yEdges);
-
-txt = sprintf('%.4f\nx: %s\ny: %s', A(yIdx, xIdx), string(xCenters(xIdx)), string(yCenters(yIdx)));
 end

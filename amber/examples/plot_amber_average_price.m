@@ -11,7 +11,7 @@ T.month = month(T.date);
 %% Spot + Tariff
 g = groupsummary(T, 'tod', @mean, 'rrp');
 x = g.tod;
-y_tariff = tariffs(tariff_name, g.tod, g.fun1_rrp);
+y_tariff = tariffs(tariff_name, T.time, g.fun1_rrp);
 
 figmode(1, 'dark', 'handy')
 plotspread2(gca, x, y_tariff, [], [1 1 0], state);

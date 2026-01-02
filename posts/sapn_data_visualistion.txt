@@ -1,0 +1,21 @@
+Hello, Can I get your 2c..
+
+I like to experiment with different data visualisations.
+This one is for visualising usage data, in this case NEM12 data from SAPN.
+This is an interactive plot that lets a user zoom, pan and click to read of values.
+I know its busy, but it can also convey a lot of information.
+
+This data is from someone who has solar only and no battery.
+First plot shows each of the meters separately.
+Second plot sums all the meters to show just the Total.
+Adding a battery makes the plot more chaotic.
+
+I am interested in your comments:
+Does the plot make since without explanation?
+Would you change anything: layout, colour, labels?
+Do you prefer the 'Buy', 'Sell', 'CL' version or the 'Total' one?
+Would you like to see your usage data on such a plot?
+Any particular questions you would try to answer with such a plot?
+If this was a tool would you prefer an offline python file, or online webpage?
+Would you be content seeing just your imports export data (using SAPN) or would you want to see further break down: house consumption, solar production, battery (using logs from your battery).
+(Both options would require the user to manually acquire and provide their data to the tool.)

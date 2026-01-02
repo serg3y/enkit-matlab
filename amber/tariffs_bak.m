@@ -15,7 +15,7 @@ function [out, daily] = tariffs_bak(tariff, time, spot)
 %   Where X is derived to be 4.4502c, composed of: hedging (1.5c) + Carbon
 %     offset (0.22c), market charges (0.47c), certificates (2.36c)  [Rob]
 %
-% Sammary:
+% Summary:
 %   spot = (RRP / 10) * 1.1
 %   price = spot * 1.1105195 + (tariff + 4.4502) * 1.1
 %

@@ -1,4 +1,4 @@
-function linkallaxes(datatypes_list)
+function linkallaxes(datatypes_list, ax)
 % Automatically find and link axes in the current figure on the X and/or Y
 % dimensions based on axis datatypes.
 %   linkallaxes()   - link axes whose types are 'datetime' or 'duration'.
@@ -16,9 +16,11 @@ else
 end
 
 % Find all axes
-ax = findobj(gcf, 'Type', 'axes');
-if numel(ax) < 2
-    return;
+if nargin < 2 || isempty(ax)
+    ax = findobj(gcf, 'Type', 'axes');
+    if numel(ax) < 2
+        return;
+    end
 end
 
 % Get axis datatypes

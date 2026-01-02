@@ -1,109 +1,77 @@
-function figmode(varargin)
-% Apply preset graphics settings to MATLAB figures.
-%    figmode(mode1, mode2, ...)
-%    figmode(fig, mode1, ...)  where fig is a figure number or handle.
-%
-% Examples:
-%   figmode(1, 'dark', 'handy')
-%   plot(rand(10))
+function fig = figmode(fig, mode, varargin)
+% figmode(fig, mode, figProp...)
 
-% Serge
-
-% Check inputs
-fig = [];
-clr = false;
-if ~isempty(varargin) && (isnumeric(varargin{1}) || isgraphics(varargin{1}, 'figure'))
-    if isnumeric(varargin{1})
-        fig = abs(varargin{1});
-        clr = varargin{1} < 0;
+if isnumeric(fig)
+    if fig<0
+        fig = clf(figure(abs(fig)));
     else
-        fig = varargin{1};
+        fig = figure(fig);
     end
-    varargin = varargin(2:end);
 end
-if isempty(varargin)
-    varargin = {'default'};
-end
+white = [0.7 0.7 0.7];
 
-% Apply each mode
-cellfun(@applymode, varargin)
-
-% Focus and figure
-if ~isempty(fig) && isscalar(fig)
-    if clr && ishandle(fig)
-        close(fig)
-        figure(fig)
-    end
-    figure(fig)
-end
-end
-
-function applymode(mode)
-switch mode
-    case {'Default' 'reset'}
-        applymode('light')
-        applymode('nohandy')
-
-    case 'handy'
-        set(groot, 'DefaultFigureWindowStyle', 'docked');
-        set(groot, 'DefaultFigureNumberTitle', 'off');
-        set(groot, 'DefaultFigureCreateFcn', @(h, ~) set(h, 'Name', num2str(h.Number)));
-        set(groot, 'DefaultAxesCreateFcn', @(ax, ~) hold(ax, 'on'));
-        set(groot, 'DefaultAxesXGrid', 'on');
-        set(groot, 'DefaultAxesYGrid', 'on');
-        set(groot, 'DefaultAxesFontSize', 12);
-        set(groot, 'DefaultTextInterpreter', 'none');
-        set(groot, 'DefaultAxesTickLabelInterpreter', 'none');
-        set(groot, 'DefaultColorbarTickLabelInterpreter', 'none');
-
-    case 'nohandy'
-        set(groot, 'DefaultFigureWindowStyle', 'remove');
-        set(groot, 'DefaultFigureNumberTitle', 'remove');
-        set(groot, 'DefaultFigureCreateFcn', 'remove');
-        set(groot, 'DefaultAxesCreateFcn', 'remove');
-        set(groot, 'DefaultAxesXGrid', 'remove');
-        set(groot, 'DefaultAxesYGrid', 'remove');
-        set(groot, 'DefaultAxesBox', 'remove');
-        set(groot, 'DefaultAxesFontSize', 'remove');
-        set(groot, 'DefaultTextFontSize', 'remove');
-        set(groot, 'DefaultTextInterpreter', 'remove');
-        set(groot, 'DefaultAxesTickLabelInterpreter', 'remove');
-        set(groot, 'DefaultLegendInterpreter', 'remove');
-        set(groot, 'DefaultColorbarTickLabelInterpreter', 'remove');
+switch lower(mode)
 
     case 'dark'
-        white = [0.7 0.7 0.7];
-        set(groot, 'DefaultFigureColor', [0 0 0]);
-        set(groot, 'DefaultAxesColor', [0 0 0]);
-        set(groot, 'DefaultAxesXColor', white);
-        set(groot, 'DefaultAxesYColor', white);
-        set(groot, 'DefaultAxesZColor', white);
-        set(groot, 'DefaultTextColor', white);
-        set(groot, 'DefaultAxesGridColor', white*0.8);
-        set(groot, 'DefaultAxesMinorGridColor', white*0.6);
-        set(groot, 'DefaultColorbarColor', white);
-        set(groot, 'DefaultLegendTextColor', white);
-        set(groot, 'DefaultAxesColorOrder', [
-            1.0 0.4 0.4
-            0.4 0.8 1.0
-            1.0 1.0 0.4
-            0.8 0.6 1.0
-            0.4 1.0 0.6
-            1.0 0.6 0.2
-            0.6 0.6 0.6]);
+        set(fig, ...
+            'Color',[0 0 0], ...
+            'NumberTitle','off', ...
+            'DefaultAxesColor',[0 0 0], ...
+            'DefaultAxesXColor',white, ...
+            'DefaultAxesYColor',white, ...
+            'DefaultAxesZColor',white, ...
+            'DefaultTextColor',white, ...
+            'DefaultAxesGridColor',white*0.8, ...
+            'DefaultAxesMinorGridColor',white*0.6, ...
+            'DefaultColorbarColor',white, ...
+            'DefaultLegendTextColor',white, ...
+            'DefaultAxesXGrid','on', ...
+            'DefaultAxesYGrid','on', ...
+            'DefaultAxesFontSize',12, ...
+            'DefaultTextInterpreter','none', ...
+            'DefaultAxesTickLabelInterpreter','none', ...
+            'DefaultColorbarTickLabelInterpreter','none', ...
+            'DefaultAxesNextPlot','add', ...
+            'DefaultAxesColorOrder',[ ...
+                1.0 0.4 0.4
+                0.4 0.8 1.0
+                1.0 1.0 0.4
+                0.8 0.6 1.0
+                0.4 1.0 0.6
+                1.0 0.6 0.2
+                0.6 0.6 0.6 ]);
 
-    case {'light' 'normal' 'default'}
-        set(groot, 'DefaultFigureColor', 'remove');
-        set(groot, 'DefaultAxesColor', 'remove');
-        set(groot, 'DefaultAxesXColor', 'remove');
-        set(groot, 'DefaultAxesYColor', 'remove');
-        set(groot, 'DefaultAxesZColor', 'remove');
-        set(groot, 'DefaultTextColor', 'remove');
-        set(groot, 'DefaultAxesGridColor', 'remove');
-        set(groot, 'DefaultAxesMinorGridColor', 'remove');
-        set(groot, 'DefaultColorbarColor', 'remove');
-        set(groot, 'DefaultLegendTextColor', 'remove');
-        set(groot, 'DefaultAxesColorOrder', 'remove');
+    case 'default'
+        set(fig, ...
+            'Color','remove', ...
+            'DefaultAxesColor','remove', ...
+            'DefaultAxesXColor','remove', ...
+            'DefaultAxesYColor','remove', ...
+            'DefaultAxesZColor','remove', ...
+            'DefaultTextColor','remove', ...
+            'DefaultAxesGridColor','remove', ...
+            'DefaultAxesMinorGridColor','remove', ...
+            'DefaultColorbarColor','remove', ...
+            'DefaultLegendTextColor','remove', ...
+            'DefaultAxesXGrid','remove', ...
+            'DefaultAxesYGrid','remove', ...
+            'DefaultAxesFontSize','remove', ...
+            'DefaultTextInterpreter','remove', ...
+            'DefaultAxesTickLabelInterpreter','remove', ...
+            'DefaultColorbarTickLabelInterpreter','remove', ...
+            'DefaultAxesNextPlot','remove', ...
+            'DefaultAxesColorOrder','remove');
 
+    otherwise
+        warning('figmode:UnknownMode','Unknown mode "%s"',mode)
+end
+
+% User-supplied settings
+if ~isempty(varargin)
+    set(fig, varargin{:})
+end
+
+if ~nargout
+    clear fig
 end
 end

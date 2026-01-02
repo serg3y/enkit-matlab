@@ -1,14 +1,14 @@
 % Plot SA Power Network electricity usage data.
 %
 % Usage:
-% 1.Manually download data file(s) from SA Power network, see \sapn\README
+% 1.Manually download data file(s) from SA Power network, see \nem\README
 % 2.Set fold to be the path to the data folder.
 
 fold = 'serge';
 rez = 30;
 
 % Load data
-T = sapn().read(fullfile('sapn', fold), [], rez, '+10');
+T = nem().read(fullfile('nem', fold), [], rez, '+10');
 
 t = amber().getPrices({'2024-12-01' '2025-08-18'}, rez);
 T = innerjoin(T, t, 'Keys', 'start');

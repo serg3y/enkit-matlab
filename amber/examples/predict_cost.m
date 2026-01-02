@@ -1,9 +1,9 @@
 %% Compare usage - SAPN vs Amber (same)
 % T1 = amber().getUsage({'2025-06-23' '2025-07-01'}); % Amber (starts 2025-06-23)
-% T2 = sapn().read('D:\MATLAB\enkit\sapn\data\Serge\*.csv');
+% T2 = nem().read('D:\MATLAB\enkit\nem\data\Serge\*.csv');
 % T = innerjoin(T1, T2, 'Keys', 'time');
-% rms(T.buy_amount - T.buy_kwh) % same
-% rms(T.sell_amount - T.sell_kwh) % same
+% rms(T.buy_amount - T.import_kwh) % same
+% rms(T.sell_amount - T.export_kwh) % same
 
 %% Compare price - AEMO RTOU calculated vs Amber (same)
 % T1 = amber().getPrices({'2024-11-30' '2025-09-20'}); % spot_price (starts 2024-11-30)
@@ -17,16 +17,21 @@
 
 %% Load data
 
-bill = 'Jenka 3'; sapn_folder = 'D:\MATLAB\enkit\sapn\data\Jenka'; curtailment = true; tariff_name = 'Origin JS';  %'amber_rtou'
-% bill = 'Jenka 3'; sapn_folder = 'D:\MATLAB\enkit\sapn\data\Jenka'; curtailment = true; tariff_name = 'amber rtou';  %'amber_rtou'
+% example = 'Jenka 3'; data_folder = 'D:\MATLAB\enkit\nem\data\Jenka'; curtailment = true; tariff = 'Origin JS';  
+% example = 'Jenka 3'; data_folder = 'D:\MATLAB\enkit\nem\data\Jenka'; curtailment = true; tariff = 'amber rtou'; 
 
-switch bill
-    % SAPN usage data
+% example = 'Jason SS'; labels = ["Usage" "Cost"]; curtailment = false; tariff = 'JA'; span = ["2025-08-31" "2025-11-16"]; data_folder = 'D:\MATLAB\enkit\nem\data\Jason';
+
+% example = 'Serge'; labels = ["Usage" "Cost"]; curtailment = false; tariff = 'amber rtou'; span = ["2024-12-01" "2025-11-29"]; data_folder = 'D:\MATLAB\enkit\nem\data\Serge';
+example = 'Serge'; labels = ["Buy Price"]; curtailment = false; tariff = 'amber rtou'; span = ["2024-12-01" "2025-11-29"]; data_folder = 'D:\MATLAB\enkit\nem\data\Serge';
+% example = 'Serge'; labels = ["Export"]; curtailment = false; tariff = 'amber rtou'; span = ["2024-12-01" "2025-11-29"]; data_folder = 'D:\MATLAB\enkit\nem\data\Serge';
+
+switch example
     case -3, span = {'2024-03-28' '2025-03-29'}; % Andrew
     case -2, span = {'2024-12-01' '2025-08-31'}; % Serge
     case -1, span = {'2024-09-01' '2025-08-31'}; % Jenka
 
-        % Jenka's bills                                             actaul (origin) | sim (origin) | sim (Amber)
+        % Jenka's bills                                             actual (origin) | sim (origin) | sim (Amber)
     case 'Jenka 1', span = {'2024-09-21' '2024-12-21'}; %       26.24 + 75 = 101.24 | 126.96       | 261
     case 'Jenka 2', span = {'2024-12-21' '2025-03-21'}; %      164.87 + 75 = 239.87 | 264.91       | 424
     case 'Jenka 3', span = {'2025-03-21' '2025-06-21'}; % 92d  259.82 + 75 = 334.82 | 350.63-32.75 | 423
@@ -42,53 +47,110 @@ switch bill
     case 'Serge 7', span = {'2025-05-30' '2025-06-29'};
     case 'Serge 8', span = {'2025-06-30' '2025-07-29'};
     case 'Serge 9', span = {'2025-07-30' '2025-08-29'};
+
+    case 'Jason SS', span = ["2025-08-31" "2025-11-16"];
 end
 
-%% Load electricity usage (SAPN)
-T = sapn().read(sapn_folder, span);
+%% Load electricity usage
+T = nem().read(data_folder, span);
 [T.tod, T.date] = timeofdaylocal(T.time);
-if hascolumn(T, 'buy2_kwh')
-    T.buy_kwh = T.buy_kwh + T.buy2_kwh; % Lump controlled loads with regular usage (HACK)
-    T.buy2_kwh = [];
+if hascolumn(T, 'cl_kwh')
+    T.import_kwh = T.import_kwh + T.cl_kwh; % Lump controlled loads with regular usage (HACK)
+    T.cl_kwh = [];
 end
 
-% Append electrcicty prices
-[T.buy_price, T.sell_price, T.supply] = tariffs(tariff_name, T.time, 'sa');
+% Append electricity prices
+[T.buy_price, T.sell_price, T.supply] = tariffs(tariff, T.time, 'sa');
+T.price_diff = T.buy_price-T.sell_price;
 
-%% Cost
-T.buy_cost = T.buy_kwh .* T.buy_price;
-T.sell_cost = T.sell_kwh .* T.sell_price;
+%% Calculate Cost
+T.buy_cost = T.import_kwh .* T.buy_price;
+T.sell_cost = T.export_kwh .* T.sell_price;
+
+% Apply curtailment
 if curtailment
-    T.sell_cost(T.sell_price<0) = 0; % Curtailment
-    T.sell_kwh(T.sell_price<0) = 0;
+    T.sell_cost(T.sell_price<0) = 0;
+    T.export_kwh(T.sell_price<0) = 0;
 end
-T.cost = T.buy_cost - T.sell_cost; % Net cost
 
-% Predict Amber bill
-D = groupsummary(T, 'date', @(x)sum(x), {'buy_kwh' 'buy_cost' 'sell_kwh' 'sell_cost' 'supply'});
-D = renamevars(D, {'fun1_buy_kwh' 'fun1_buy_cost' 'fun1_sell_kwh' 'fun1_sell_cost' 'fun1_supply'}, {'buy_kwh' 'buy_cost' 'sell_kwh' 'sell_cost' 'Supply'});
+% Net cost
+T.cost = T.buy_cost - T.sell_cost;
+
+%% Calculate rates (kW)
+interval = hours(mode(diff(T.time))); % sampling interval (hrs)
+T.import_kw = T.import_kwh/interval; % kW
+T.export_kw = T.export_kwh/interval;
+T.total_kw = T.import_kw - T.export_kw;
+controlled_load = hascolumn(T, 'cl_kwh') && sum(T.cl_kwh)>0;
+if controlled_load
+    T.cl_kwh = fillmissing(T.cl_kwh, 'constant', 0);
+    T.cl_kw = T.cl_kwh*60/header.Interval;
+    T.total_kw = T.total_kw + T.cl_kw;
+end
+
+%% Plot
+figmode(-1, 'dark')
+
+% Labels
+% labels = ["Usage" "Cost"]; % "buy_price" "sell_price"
+% labels = ["Usage" "Cost"]; % "buy_price" "sell_price"
+% labels = ["Buy Price" "Sell Price"]; % "buy_price" "sell_price"
+
+n = numel(labels);
+for k = 1:numel(labels)
+
+    % Plot settings
+    switch labels(k)
+        case "Usage",      prop = "total_kw";   units =["kW" "kWh"]; col = [1.0 0.2 0.2;0.0 0.9 0.0];
+        case "Export",     prop = "export_kw";  units =["kW" "kWh"]; col = [            0.0 0.9 0.0];
+        case "Buy Price",  prop = "buy_price";  units = 'c/kWh';     col = [1.0 0.2 0.2;0.0 0.9 0.0];
+        case "Sell Price", prop = "sell_price"; units = 'c/kWh';     col = [0.0 0.9 0.0;1.0 0.2 0.2];
+        case "Price Diff", prop = "price_diff"; units = 'c/kWh';     col = [1.0 0.2 0.2;0.0 0.9 0.0];
+        case "Cost",       prop = "cost";       units = '$';         col = [1.0 0.2 0.2;0.0 0.9 0.0];
+        otherwise, error('undefined')
+    end
+
+    % Axes position
+    pos = [0 1-1/n*k 1 1/n]; % L B W H
+
+    % Plot
+    ax = heatmapTimeVsDatePlus(T, 'time', prop, col, labels(k), units, pos);
+
+end
+
+linkallaxes
+xlim(ax(1), datetime([min(T.time) max(T.time)], 'TimeZone', ax(1).XLim.TimeZone))
+
+file = fullfile(data_folder, "Predict Cost - " + example + " - " + strjoin(labels) + ".png");
+figsave(1, file, [1920 1080])
+return
+
+
+%% Predict Amber bill
+D = groupsummary(T, 'date', @(x)sum(x), {'import_kwh' 'buy_cost' 'export_kwh' 'sell_cost' 'supply'});
+D = renamevars(D, {'fun1_import_kwh' 'fun1_buy_cost' 'fun1_export_kwh' 'fun1_sell_cost' 'fun1_supply'}, {'import_kwh' 'buy_cost' 'export_kwh' 'sell_cost' 'Supply'});
 assert(all(D.GroupCount==288))
 
 % Origin
 if 1
-    D.Usage = D.buy_kwh;
+    D.Usage = D.import_kwh;
     D.Cost = D.buy_cost/100;
     D.Supply = D.Supply/100;
     D.BuyRate = D.Cost./D.Usage;
     D.BuyGST = (D.Cost + D.Supply) * 0.1;
     D.ChargesTotal = D.Cost + D.Supply + D.BuyGST;
-    D.Export = D.sell_kwh;
+    D.Export = D.export_kwh;
     D.Credits = D.sell_cost/100;
     D.SellRate = D.Credits./D.Export;
     D.SellGST = min(D.Credits * 0.1, 0);
     D.CreditsTotal = D.Credits + D.SellGST;
     D.DailyTotal = D.ChargesTotal - D.CreditsTotal;
-    D = removevars(D, {'buy_kwh' 'buy_cost' 'sell_kwh' 'sell_cost'});
+    D = removevars(D, {'import_kwh' 'buy_cost' 'export_kwh' 'sell_cost'});
 
     clc
     num_days = ceil(days(range(T.time)));
-    fprintf('User: %s\n', sapn_folder)
-    fprintf('Curtailing: %s\n', string(curtailment))
+    fprintf('User: %s\n', data_folder)
+    fprintf('Curtailment: %s\n', string(curtailment))
     fprintf('%s  %s  %g\n', checkdate(span), num_days)
     fprintf('%-16s%9.2f\n','Usage (kWh)' , sum(D.Usage))
     fprintf('%-16s%9.2f\n','Export (kWh)', sum(D.Export))
@@ -100,19 +162,19 @@ end
 
 if 0
 
-    D.Usage = D.buy_kwh;
-D.Cost = D.buy_cost/100;
-D.Supply = D.Supply/100;
-D.BuyRate = D.Cost./D.Usage;
-D.BuyGST = (D.Cost + D.Supply) * 0.1;
-D.ChargesTotal = D.Cost + D.Supply + D.BuyGST;
-D.Export = D.sell_kwh;
-D.Credits = D.sell_cost/100;
-D.SellRate = D.Credits./D.Export;
-D.SellGST = min(D.Credits * 0.1, 0);
-D.CreditsTotal = D.Credits + D.SellGST;
-D.DailyTotal = D.ChargesTotal - D.CreditsTotal;
-D = removevars(D, {'buy_kwh' 'buy_cost' 'sell_kwh' 'sell_cost'});
+    D.Usage = D.import_kwh;
+    D.Cost = D.buy_cost/100;
+    D.Supply = D.Supply/100;
+    D.BuyRate = D.Cost./D.Usage;
+    D.BuyGST = (D.Cost + D.Supply) * 0.1;
+    D.ChargesTotal = D.Cost + D.Supply + D.BuyGST;
+    D.Export = D.export_kwh;
+    D.Credits = D.sell_cost/100;
+    D.SellRate = D.Credits./D.Export;
+    D.SellGST = min(D.Credits * 0.1, 0);
+    D.CreditsTotal = D.Credits + D.SellGST;
+    D.DailyTotal = D.ChargesTotal - D.CreditsTotal;
+    D = removevars(D, {'import_kwh' 'buy_cost' 'export_kwh' 'sell_cost'});
 
     num_days = ceil(days(range(T.time)));
     Usage = sum(D.Usage);
@@ -129,8 +191,8 @@ D = removevars(D, {'buy_kwh' 'buy_cost' 'sell_kwh' 'sell_cost'});
     BillTotal = sum(D.DailyTotal);
 
     clc
-    fprintf('User: %s\n', sapn_folder)
-    fprintf('Curtailing: %s\n', string(curtailment))
+    fprintf('User: %s\n', data_folder)
+    fprintf('Curtailment: %s\n', string(curtailment))
     fprintf('Period: %s - %s  (%g days)\n', T.time(1), dateshift(T.time(end), 'end', 'day'), num_days)
     fprintf('%-16s%9.2f\n','Usage (kWh)' ,     Usage)
     fprintf('%-16s%9.2f\n','Cost ($)',         Charges)
@@ -146,23 +208,23 @@ end
 
 return
 %% Plot
-figmode(1, 'dark', 'handy')
-myplot(T, 1, 2, 'Buy',  'buy_cost',  'buy_kwh',  'buy_cost',  cold2hot, [1.0 0.3 0.3], [0.3 1.0 0.3])
-myplot(T, 2, 2, 'Sell', 'sell_cost', 'sell_kwh', 'sell_cost', hot2cold, [0.3 1.0 0.3], [1.0 0.3 0.3])
+figmode(-1, 'dark', 'handy')
+myplot(T, 1, 2, 'Buy',  'buy_cost',  'import_kwh',  'buy_cost',  cold2hot, [1.0 0.3 0.3], [0.3 1.0 0.3])
+myplot(T, 2, 2, 'Sell', 'sell_cost', 'export_kwh', 'sell_cost', hot2cold, [0.3 1.0 0.3], [1.0 0.3 0.3])
 linkallaxes
-figsave(1, ['simulate_amber_bill_' sapn_folder '.png'], [1600 1000])
+figsave(1, ['simulate_amber_bill_' data_folder '.png'], [1600 1000])
 
 %%
 function myplot(T, N, M, name, price, amount, cost, c1, c2, c3)
 
 axis_stack(1, 6, N, M)
 plotheatmap(T.date, T.tod, T.(price))
-colormap(gca, c1), clim([-200 200]), colorbarsml 'Price (c/kWh)'
+colormap(gca, c1), clim([-3 3]), colorbarsml 'Price (c/kWh)'
 title(name)
 
 axis_stack(2, 6, N, M)
 plotheatmap(T.date, T.tod, T.(amount))
-colormap(gca, c1), clim([-3 3]), colorbarsml 'Amount (kWh)'
+colormap(gca, c1), clim([-1 1]), colorbarsml 'Amount (kWh)'
 
 axis_stack(3, 6, N, M)
 [i, G] = findgroups(T.date);

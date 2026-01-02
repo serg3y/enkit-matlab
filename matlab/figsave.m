@@ -33,6 +33,7 @@ if get(fig, 'Color') < 0.5
 end
 
 % Render figure as RGB image (slow but accurate)
+% set(gcf, 'PaperPositionMode', 'auto') % HACK to supress warning
 pause(0.1)
 img = print(fig, '-RGBImage', ['-r' num2str(100 * txt, '%f')]);
 

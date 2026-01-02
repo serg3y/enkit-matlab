@@ -14,6 +14,10 @@ if iscell(t)
     return
 end
 
+if ischar(t) && isfinite(str2double(t))
+    t = str2double(t); % convert '-10' > [-10]
+end
+
 if ischar(t) || isstring(t)
     t = datetime(t); % text -> datetime
 elseif isnumeric(t)
