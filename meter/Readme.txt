@@ -14,3 +14,9 @@ When confirming the email address check your spam folder.
 4. Login to SA power dashboard
 https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard
 5. Click "Download Data" (under the plot), and choose "Detailed Report (CSV)".
+
+
+To add another NMI
+1. Go to https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard
+2. Click on your name > Manage my NMIs > Add NMI
+3. 

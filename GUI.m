@@ -26,7 +26,7 @@ zones = ["+08:00" "+09:30" "+10:00" "+10:30" "+11:00" "Perth" "Adelaide" "Darwin
 W = 900; H = 460;
 delete(findall(0, 'Tag', 'enkit'))
 warning off MATLAB:ui:containers:SizeChangedFcnDisabledWhenAutoResizeOn
-gui = uifigure  ('Position', [2700 400 W+20 H+20], 'Name', 'EnKit', 'Tag', 'enkit');
+gui = uifigure  ('Position', [100 400 W+20 H+20], 'Name', 'EnKit', 'Tag', 'enkit');
 tab = uitabgroup('Position', [ 10  10 W    H   ], 'Parent', gui); % Tab group
 
 %% Data
