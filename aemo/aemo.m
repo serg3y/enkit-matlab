@@ -8,8 +8,8 @@
 % - 'time' is the start time of each interval
 %
 % Example:
-%   aemo(staleLim=hours(0)).downloadData('SA', {'2024-07-01' 0})
-%   T = aemo().readData('SA', {'2024-07-01' '2024-07-10'})
+%   aemo(staleLim=hours(0)).download('SA', {'2024-07-01' 0})
+%   T = aemo().read('SA', {'2024-07-01' '2024-07-10'})
 %
 % Reference:
 %   https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
@@ -32,15 +32,21 @@ classdef aemo
             end
         end
 
-        function downloadData(obj, state, span, staleLim)
+        function T = getPrice(obj, state, span)
+            obj.download(state, span);
+            T = obj.read(state, span);
+        end
+
+        function download(obj, state, span, staleLim)
             % Download required month(s) of data to files
-            %   downloadData(state, span, staleLim)
+            %   download(state, span, staleLim)
             if nargin<4 || isempty(staleLim), staleLim = hours(12); end
 
-            monthList = unique(dateshift(checkdate(span{1}) : checkdate(span{end}), 'start', 'month'));
+            fprintf(' Downloading AEMO wholesale price and state usage data...\n')
+            monthList = unique(dateshift(checkdate(span(1)) : checkdate(span(end)), 'start', 'month'));
             for month = monthList
                 [file, url] = obj.monthFile(state, month);
-                fprintf(' %s > %s', url, file)
+                fprintf('  %s > %s', url, file)
 
                 % Skip if the file exists and is complete or not stale
                 if isfile(file) && (complete(file) || ~stale(file, staleLim))
@@ -58,10 +64,10 @@ classdef aemo
             end
         end
 
-        function T = readData(obj, state, span)
+        function T = read(obj, state, span)
             % Read data
-            fprintf('Reading...\n')
-            monthList = unique(dateshift(checkdate(span{1}, '+10:00') : checkdate(span{end}, '+10:00'), 'start', 'month'));
+            fprintf(' Reading AEMO wholesale price and state usage data...\n')
+            monthList = unique(dateshift(checkdate(span(1), '+10:00') : checkdate(span(end), '+10:00'), 'start', 'month'));
             T = cell(numel(monthList), 1); % Preallocate
             for k = 1:numel(monthList)
                 file = obj.monthFile(state, monthList(k));
@@ -80,7 +86,7 @@ classdef aemo
                 T.time = T.SETTLEMENTDATE - period; % Set the interval start time
 
                 % Filter data using time span
-                T = T(T.time >= checkdate(span{1}, '+10:00') & T.time < checkdate(span{end}, '+10:00'), :);
+                T = T(T.time >= checkdate(span(1), '+10:00') & T.time < checkdate(span(end), '+10:00'), :);
 
                 % Reformat data
                 s = upper(state);

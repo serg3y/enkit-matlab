@@ -11,6 +11,7 @@
 *.sx2
 *.ini
 *.bat
+*.mat
 cookie.txt
 cookies.txt
 *token.txt

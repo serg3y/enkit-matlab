@@ -11,7 +11,8 @@ if nargin < 6 || isempty(name), name = ''; end
 if nargin < 7 || isempty(mode), mode = 'xy'; end
 
 % Checks
-color = color2rgb(color);
+isLightMode = mean(get(ax, 'Color')) > 0.5;
+color = color2rgb(color, isLightMode);
 y1 = fillmissing(y1, 'constant', 0);
 y2 = fillmissing(y2, 'constant', 0);
 
@@ -32,10 +33,13 @@ YY = [Y1(:); flipud(Y2(:))];
 name = sprintf('\\color[rgb]{%g %g %g}%s', color, name);
 
 % Create patch
-if strcmpi(mode,'xy')
-    h = patch(ax, XX, YY, color, 'EdgeColor', color, 'DisplayName', name, 'FaceAlpha', 0.3, 'EdgeAlpha', 0.2, varargin{:});
-else
-    h = patch(ax, YY, XX, color, 'EdgeColor', color, 'DisplayName', name, 'FaceAlpha', 0.3, 'EdgeAlpha', 0.2, varargin{:});
+switch lower(mode)
+    case 'xy'
+        h = patch(ax, XX, YY, color, 'EdgeColor', color, 'DisplayName', name, 'FaceAlpha', 0.3, 'EdgeAlpha', 0.2, varargin{:});
+    case 'yx'
+        h = patch(ax, YY, XX, color, 'EdgeColor', color, 'DisplayName', name, 'FaceAlpha', 0.3, 'EdgeAlpha', 0.2, varargin{:});
+    otherwise
+        error('Unknown mode: %s\nRecognised modes are: "xy", "yx"', mode)
 end
 
 if ~nargout

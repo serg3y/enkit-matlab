@@ -170,23 +170,26 @@ classdef pvoutput
             sid = string(sid);
             obj.downloadInfo(sid)
 
-            days = checkdate(span(1)) : checkdate(span(2));
+            dayVec = checkdate(span(1)) : checkdate(span(2));
             fold = fullfile(obj.datafold, sid);
 
             if ~isfolder(fold)
                 mkdir(fold)
             end
 
-            for k = 1:numel(days)
-                daystr = string(days(k), 'yyyyMMdd');
-                file   = fullfile(fold, sprintf('%s.csv', daystr));
-                fprintf('%g/%g: %s', k, numel(days), daystr);
+            fprintf(' Downloading missing pvoutput data for system = %s, from %s to %s (%g days)\n', sid, string(dayVec([1 end]), 'yyyy-MM-dd'), numel(dayVec))
+            for k = 1:numel(dayVec)
+                daystr = string(dayVec(k), 'yyyyMMdd');
+                file = fullfile(fold, sprintf('%s.csv', daystr));
 
-                % Skip existing
-                if isfile(file)
-                    fprintf(' exists\n');
-                    continue
+                % Check
+                if isfile(file) && dayVec(k) + days(3) > datetime(dir(file).date, 'TimeZone', dayVec(k).TimeZone)
+                    delete(file) % File might be incomplete
                 end
+                if isfile(file)
+                    continue % Skip existing files
+                end
+                fprintf(' %g/%g: %s', k, numel(dayVec), daystr);
 
                 % Prepare
                 url = sprintf('https://pvoutput.org/intraday.jsp?id=70662&sid=%s&dt=%s&gs=0&m=0', sid, daystr);
@@ -201,7 +204,7 @@ classdef pvoutput
 
                 % Parse time
                 text = regexp(html, '(?<=timeArray = \[)[^\]]*', 'match', 'once');
-                time = days(k) + minutes(str2double(strsplit(text, ',')))';
+                time = dayVec(k) + minutes(str2double(strsplit(text, ',')))';
 
                 % Parse values
                 text = regexp(html, '(?<=dataEnergyOut = \[)[^\]]*', 'match', 'once');
@@ -218,7 +221,7 @@ classdef pvoutput
                 fprintf(' (n=%d)\n', n);
 
                 % Fill missing values
-                T = fillMissing(T, days(k), minutes(5));
+                T = fillMissing(T, dayVec(k), minutes(5));
 
                 % Save
                 writetable(T, file);

@@ -4,14 +4,14 @@ output_fold = fullfile('D:\MATLAB\enkit\simbattery\examples', scenario_name);
 
 switch scenario_name
     case 'Andrew'
-        usage_data_fold = 'D:\MATLAB\enkit\nem\data\Andrew';
+        usage_data_fold = 'D:\MATLAB\enkit\meter\data\Andrew';
         analysis_period = ["2024-03-30" "2025-03-29"];
         tariff_list = 'JS';
         battery_capacities = 0:30;
         apply_curtailment = true;
     case 'Jenka'
         % Daily import|export = 7.87|24.07 kWh
-        usage_data_fold = 'D:\MATLAB\enkit\nem\data\Jenka';
+        usage_data_fold = 'D:\MATLAB\enkit\meter\data\Jenka';
         analysis_period = ["2024-09-13" "2025-09-13"];
         tariff_list = ["JS" "amber rtou"];
         battery_capacities = [0:0.1:2 3:10 12:2:30];

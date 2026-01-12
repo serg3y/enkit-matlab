@@ -87,10 +87,12 @@ classdef amber
             % Read or download prices or usage data
             if nargin < 4, rez = []; end  % Use default 5 min resolution
 
-            % Collect results in a cell (faster than growing a table)
+            % Collect results in a cell
             tables = {};
 
-            for day = checkdate(span{1}) : checkdate(span{end})
+            for day = checkdate(span(1)) : checkdate(span(end))
+                % Ignore time zones
+                day.TimeZone = ''; 
 
                 % Choose identifier depending on type
                 switch type
@@ -105,13 +107,22 @@ classdef amber
                     mkdir(fileparts(file));
                 end
 
-                % Cached file check
-                json_file = dir([file '.json']);
-                isStale = @(f, d) datetime(f.date) < d + 1 + hours(1) && datetime(f.date) + minutes(30) < datetime;
+                % % Check cached file
+                % json_file = dir([file '.json']);
+                % isStale = @(f, d) datetime(f.date) < d + 1 + hours(1) && datetime(f.date) + minutes(30) < datetime;
+                % if ~isempty(json_file) && isStale(json_file, day)
+                %     delete(fullfile(json_file.folder, json_file.name));
+                %     json_file = [];
+                % end
 
-                if ~isempty(json_file) && isStale(json_file, day)
-                    delete(fullfile(json_file.folder, json_file.name));
-                    json_file = [];
+                % Check cached file
+                json_file = dir(file + ".json");
+                if ~isempty(json_file)
+                    t = datetime(json_file.date);
+                    if t < day + days(1) + hours(1) && t + minutes(30) < datetime('now') % check if stale
+                        delete(fullfile(json_file.folder, json_file.name));
+                        json_file = [];
+                    end
                 end
 
                 % Load or download JSON
@@ -124,20 +135,20 @@ classdef amber
                         url_rez = sprintf('&resolution=%g', rez);
                     end
                     url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span url_rez];
-                    [err, json] = obj.geturl(url);
+                    [err, json_file] = obj.geturl(url);
 
                     if err
-                        fprintf(2, 'Error: %s\n', json);
+                        fprintf(2, 'Error: %s\n', json_file);
                         continue
                     end
 
-                    filewrite([file '.json'], json);
+                    filewrite([file '.json'], json_file);
                 else
-                    json = fileread([file '.json']);
+                    json_file = fileread([file '.json']);
                 end
 
                 % Skip if no data
-                if numel(json) <= 2
+                if numel(json_file) <= 2
                     fprintf('  %s - no data\n', day);
                     continue
                 end
@@ -164,7 +175,7 @@ classdef amber
 
             % Step through days
             T = []; % Large table to hold all data
-            for day = checkdate(span{1}) : checkdate(span{end})
+            for day = checkdate(span(1)) : checkdate(span(end))
 
                 % Set output file path (no extension)
                 switch type

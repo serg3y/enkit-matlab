@@ -9,17 +9,17 @@
 %% Inputs
 
 example = 'Serge'; span = [];
-data_fold = 'D:\MATLAB\enkit\nem\data\Serge';
+data_fold = 'D:\MATLAB\enkit\meter\data\Serge';
 % plot_list = ["import_kw" "export_kw"];
 plot_list = ["total_kw"];
 
 % example = 'Andrew'; span = []; % 731 days
-% data_fold = 'D:\MATLAB\enkit\nem\data\Andrew';
+% data_fold = 'D:\MATLAB\enkit\meter\data\Andrew';
 % plot_list = ["import_kw" "cl_kw" "export_kw"];
 % plot_list = ["total_kw"];
 
 % example = 'Gene'; span = []; % 729 days
-% data_fold = 'D:\MATLAB\enkit\nem\data\Gene';
+% data_fold = 'D:\MATLAB\enkit\meter\data\Gene';
 % plot_list = ["import_kw" "export_kw"];
 % plot_list = ["total_kw"];
 
@@ -28,12 +28,12 @@ plot_list = ["total_kw"];
 % example ='Jason low usage'; span = ["2025-03-13" "2025-05-16"]; %  64 days
 % example ='Jason no SS';     span = ["2025-05-17" "2025-08-30"]; % 105 days
 % example ='Jason SS';        span = ["2025-08-31" "2025-11-16"]; %  77 days
-% data_fold = 'D:\MATLAB\enkit\nem\data\Jason';
+% data_fold = 'D:\MATLAB\enkit\meter\data\Jason';
 % plot_list = ["import_kw" "export_kw"];
 % plot_list = ["total_kw"];
 
 % example = 'David'; span = [];
-% data_fold = 'D:\MATLAB\enkit\nem\data\David';
+% data_fold = 'D:\MATLAB\enkit\meter\data\David';
 % plot_list = ["import_kw" "cl_kw"];
 % plot_list = ["total_kw"];
 

@@ -33,9 +33,9 @@ if isrow(col)
 end
 timestep = mode(diff(T.(tvar))); % Infer time step, assume its regular
 if isscalar(units)
-    if units == "kw"
+    if strcmpi(units, 'kw')
         units = ["kW" "kWh"]; f1 = @(x)sum(x * hours(timestep), 1, 'omitmissing'); % Convert kW to kWh
-    elseif ismember(units, {'c' '$' 'kwh'})
+    elseif any(strcmpi(units, {'c' '$' 'kwh'}))
         units = [units units]; f1 = @(x)sum(x, 1, 'omitmissing'); % Sum common quantaties
     else
         units = [units units];
@@ -59,14 +59,16 @@ H = 0.65; % height
 posMain  = [L    B   W      H     ]; % main plot
 posCbar  = [0.03 B   W*0.02 H*0.95]; % color bar
 posTop   = [L    B+H W      0.2   ]; % top plot
-posSide  = [L+W  B   0.15   H     ]; % side plot
+posRght  = [L+W  B   0.15   H     ]; % side plot
+posCrnr  = [L+W  B+H 0.15   0.2   ]; % corner plot
 
 % Scale and move plots
 adjust = @(p)[p(1:2).*pos(3:4) + pos(1:2), p(3:4).*pos(3:4)];
 posMain = adjust(posMain);
 posCbar = adjust(posCbar);
 posTop  = adjust(posTop);
-posSide = adjust(posSide);
+posRght = adjust(posRght);
+posCrnr = adjust(posCrnr);
 
 % Main plot
 ax = axes('Position', posMain, 'YDir', 'reverse');
@@ -75,28 +77,45 @@ if all(T.(vvar) >= 0)
     clim(ax, [0 max(T.(vvar))+eps])
     cmap = makeCmap(col(1,:));
 elseif all(T.(vvar) <= 0)
-    clim(ax, [max(T.(vvar)) 0])
+    clim(ax, [min(T.(vvar)) 0])
     cmap = flipud(makeCmap(col(2,:)));
 else
     clim(ax, max(abs(T.(vvar))) .* [-1 1])
     cmap = makeCmap(col);
 end
 colormap(ax, cmap);
-h = colorbar(ax, 'Location', 'manual', 'Position', posCbar);
+h = colorbar(ax, 'Location', 'manual', 'Position', posCbar, 'ButtonDownFcn', @(~,~)adjustClim(ax));
 title(h, units(1), 'Color', 'w', 'FontSize', 12, 'FontWeight', 'bold')
 
-% Initialise side-plot (top)
+% Make colorbar clickable
+function adjustClim(ax)
+    oldClim = clim(ax);
+    newClim = str2double(inputdlg({'Enter new upper color limit:'}, 'Adjust Color Limits', [1 35], {num2str(max(abs(oldClim)))}));
+    if isfinite(newClim)
+        clim(ax, oldClim / max(abs(oldClim)) * newClim);
+    end
+end
+
+% Initialise top plot
 ax2 = axes('Position', posTop);
 ylabel(ax2, units(2), 'HandleVisibility', 'off')
 set(ax2.XAxis, 'TickLength', [0.004 0])
 set(ax2.YAxis, 'TickLength', [0.004 0])
 title(ax2, ttl, 'FontSize', 12, 'HandleVisibility', 'off')
 
-% Initialise side-plot (right)
-ax3 = axes('Position', posSide, 'YDir', 'reverse');
+% Initialise right plot
+ax3 = axes('Position', posRght, 'YDir', 'reverse');
 xlabel(ax3, units(1), 'HandleVisibility', 'off')
 set(ax3.XAxis, 'TickLength', [0.004 0])
 set(ax3.YAxis, 'TickLength', [0.004 0])
+
+% Initialise histogram (top-right)
+ax4 = axes('Position', posCrnr, 'TickDir', 'in', 'XAxisLocation', 'top');
+box(ax4, 'on')
+xlabel(ax4, units(1), 'HandleVisibility', 'off')
+set(ax4.XAxis, 'TickLength', [0.004 0])
+set(ax4.YAxis, 'TickLength', [0.004 0])
+% ax4.XAxis.Label.Position = ax.XAxis.Label.Position + [0 -2 0];
 
 % Set main plot appdata
 setappdata(ax, 'axTop',  ax2);
@@ -136,6 +155,7 @@ linkaxes([ax ax3], 'y')
             % Clear old side-plots
             cla(ax2)
             cla(ax3)
+            cla(ax4)
             setappdata(ax, 'LastXLim', XLim)
             setappdata(ax, 'LastYLim', YLim)
 
@@ -165,6 +185,20 @@ linkaxes([ax ax3], 'y')
                 ylim(ax3, YLim)
             end
 
+            % Histogram
+            if 1
+                x = Ti.(vvar);
+                [~, edges] = histcounts(x, 'BinMethod', 'auto');
+                idx = discretize(x,edges);
+                y = accumarray(idx(~isnan(idx)), x(~isnan(idx)), [numel(edges)-1 1], @sum, 0);
+                binCenters = edges(1:end-1) + diff(edges)/2;
+                ind = binCenters>0;
+                bar(ax4, binCenters( ind), y( ind), 'FaceColor', col(1, :), 'EdgeColor', col(1, :), 'FaceAlpha', 0.2)
+                bar(ax4, binCenters(~ind), y(~ind), 'FaceColor', col(2, :), 'EdgeColor', col(2, :), 'FaceAlpha', 0.2)
+                set(ax4.YAxis, 'FontSize', 0.1)
+                set(ax4.XAxis, 'FontSize', 0.1)
+            end
+
             drawnow
             ax2.XTick = ax.XTick;
             ax3.YTick = ax.YTick;
@@ -175,7 +209,7 @@ end
 
 function h = plotLine(axx, Ti, var, vvar, fun, units, mode)
 G = groupsummary(Ti, var, fun, vvar);
-h = plotsteps(axx, G.(var), G{:, 3}, 'y', sprintf('avg = %.3g %s', mean(G{:, 3}), units), [], mode, 'LineWidth', 1);
+h = plotsteps(axx, G.(var), G{:, 3}, 'y', sprintf('%.5g %s', mean(G{:, 3}), units), [], mode, 'LineWidth', 1);
 end
 
 

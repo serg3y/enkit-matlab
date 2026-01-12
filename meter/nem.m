@@ -5,12 +5,7 @@
 
 classdef nem
 
-    properties
-
-    end
-
     methods
-
         function [T, header] = read(~, files, span, names, rez, timezone)
             % Read and condition NEM12 data file(s) into a table.
             %   T = nem12read(files)             - File(s) to read (filename|wildcard)
@@ -51,6 +46,16 @@ classdef nem
             [~, ind] = unique(T.time);
             T = T(ind, :);
 
+            % Sort columns (exports last)
+            isExport = startsWith(T.Properties.VariableNames, 'B');
+            T = T(:, [find(~isExport) find(isExport)]);
+
+            % Make exports negative
+            ind = startsWith(T.Properties.VariableNames, 'B');
+            if any(ind)
+                T(:, ind) = -1 .* T(:, ind);
+            end
+
             % Resample (optional)
             if ~isempty(rez)
                 % Floor time to the nearest rez period
@@ -66,7 +71,13 @@ classdef nem
 
             % Rename columns (optional)
             if all(isequal(names, "auto"))
-                T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'E1' 'B1' 'E2'}, {'import_kwh' 'export_kwh' 'cl_kwh'});
+                varNames = T.Properties.VariableNames;
+                E = find(startsWith(varNames, 'E'));
+                B = find(startsWith(varNames, 'B'));
+                if ~isempty(E), varNames{E(1)} = 'import_kwh'; end % first E*  > import
+                if  numel(E)>1, varNames{E(2)} = 'cl_kwh';     end % second E* > controlled load
+                if ~isempty(B), varNames{B(1)} = 'export_kwh'; end % first B*  > export
+                T.Properties.VariableNames = varNames;
             end
 
             % TimeZone
@@ -84,7 +95,7 @@ classdef nem
             if calcTotla
                 T.grid_kwh = T.import_kwh;
                 if hascolumn(T, 'export_kwh')
-                    T.grid_kwh = T.grid_kwh - T.export_kwh;
+                    T.grid_kwh = T.grid_kwh + T.export_kwh;
                 end
                 if hascolumn(T, 'cl_kwh')
                     T.grid_kwh = T.grid_kwh + T.cl_kwh;

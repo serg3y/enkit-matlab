@@ -1,6 +1,6 @@
 %% Compare usage - SAPN vs Amber (same)
 % T1 = amber().getUsage({'2025-06-23' '2025-07-01'}); % Amber (starts 2025-06-23)
-% T2 = nem().read('D:\MATLAB\enkit\nem\data\Serge\*.csv');
+% T2 = nem().read('D:\MATLAB\enkit\meter\data\Serge\*.csv');
 % T = innerjoin(T1, T2, 'Keys', 'time');
 % rms(T.buy_amount - T.import_kwh) % same
 % rms(T.sell_amount - T.export_kwh) % same
@@ -17,10 +17,10 @@
 
 %% Load data
 
-% bill = 'Jenka 3'; data_folder = 'D:\MATLAB\enkit\nem\data\Jenka'; curtailment = true; tariff_name = 'Origin JS';  
-% bill = 'Jenka 3'; data_folder = 'D:\MATLAB\enkit\nem\data\Jenka'; curtailment = true; tariff_name = 'amber rtou'; 
-bill = 'Jason SS'; data_folder = 'D:\MATLAB\enkit\nem\data\Jason'; curtailment = true; tariff_name = 'amber rtou'; 
-bill = 'Jason AGL'; data_folder = 'D:\MATLAB\enkit\nem\data\Jason'; curtailment = false; tariff_name = 'origin JS'; 
+% bill = 'Jenka 3'; data_folder = 'D:\MATLAB\enkit\meter\data\Jenka'; curtailment = true; tariff_name = 'Origin JS';  
+% bill = 'Jenka 3'; data_folder = 'D:\MATLAB\enkit\meter\data\Jenka'; curtailment = true; tariff_name = 'amber rtou'; 
+bill = 'Jason SS'; data_folder = 'D:\MATLAB\enkit\meter\data\Jason'; curtailment = true; tariff_name = 'amber rtou'; 
+bill = 'Jason AGL'; data_folder = 'D:\MATLAB\enkit\meter\data\Jason'; curtailment = false; tariff_name = 'origin JS'; 
 
 switch bill
     % SAPN usage data

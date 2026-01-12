@@ -5,3 +5,8 @@ To get and use a refresh_token:
 1. Visit a third-party helper, eg https://www.myteslamate.com/tesla-token
 2. Save your refresh_token to: .\my_refresh_token.txt
 3. Run my_access_token.m to generate a new access token and cache it to: .\my_access_token.json
+
+
+Links:
+  https://www.youtube.com/watch?v=EcS5trKsWD4  (rebates)
+  https://www.youtube.com/watch?v=gDOjMrpT02o  (warranty)

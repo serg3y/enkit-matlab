@@ -1,241 +1,263 @@
+% Class to download and read Powerwall2 data from the Tesla Owner API.
+% 
+% Remarks:
+% - To donwload data requires you to get a Tesla API "refresh token". These
+%   tokens can expire and may need to be refreshed at some point.
+% - A "refresh token" is used to generate an "access toke" by
+%   'Authenticating' with the Tesla API and last for 8 hrs.
+% - Downloaded files are reused automatically, incomplete files are
+%   re-downloaded, data is returned as a table with units kW & kWh.
+% - Data is provided using daily files, and dealing with timestamps 
+%   (utc vs local time) is annoying...
+%
+% Known API limitations:
+% - The Tesla Owner API provides only one day of data per request. To
+%   retrieve a full 24-hour period, the query 'end_date' must be just
+%   before local midnight, and must account for daylight saving. Also the
+%   timezone format is strict; for example, for Adelaide in summer use:
+%     end_date=2025-01-01T23:59:59%2B10:30
+% - The API does not provide the site timezone upfront. Therefore, clients 
+%   must know or cache the site's 'installation_time_zone' to reliably
+%   request full local-day periods, and must account for daylight savings.
+%
+% Configuration:
+% 1. Get a refreshToken from a third-party site, eg
+%    https://www.myteslamate.com/tesla-token
+% 2. Use "battery/powerwall.ini" to provide settings, eg:
+%    refreshToken = ABC123***
+%    timeZone = Australia/Adelaide
+%
 % Examples:
-% T = powerwall2().read()
-% T = powerwall2().getData({'2019-04-06' '2019-04-08'});
-% T = powerwall2().getData({'2019-01-01' -1});
-% T = powerwall2().read([],{'2019-04-06' '2019-04-08'});
+%   pw = powerwall2(timeZone = 'Australia/Adelaide')
+%   powerwall2().download({'2025-01-01' -1});  % Download a date range
+%   T = powerwall2().read({'2025-01-01' -1});  % Read a date range
 
-classdef powerwall2
+% TODO
+% - This class uses legacy authentication, which is officialy depricated.
+
+classdef powerwall2 < handle
 
     properties
-        dataFold = fullfile(fileparts(mfilename('fullpath')), 'data') % Data foler
-        downloadFlag = 1 % allow missing files to be downloaded
-        refreshToken
-        accessToken
-        siteId
+        dataFold = enkitPath('battery', 'data')
+        iniFile = enkitPath('battery', 'powerwall2.ini')
+        refreshToken char
+        accessToken char
         siteInfo
-        timeZone = 'Australia/Adelaide'
+        siteIds
+        timeZone char
     end
 
     methods
-
         function obj = powerwall2(varargin)
-            % Class constructor
-
-            % Apply ini settings
-            ini = fullfile(fileparts(mfilename('fullpath')), 'powerwall.ini');
-            if isfile(ini)
-                txt = fileread(ini);
-                for prop = string(properties(obj)')
-                    value = regexp(txt, "(?<=^\s*" + prop + "\s*=\s*)[^ \r\n]*", 'match', 'once', 'lineanchors'); % Find the value
-                    if ~isempty(value)
-                        obj.(prop) = strtrim(value);
+            % Parse ini settings
+            if isfile(obj.iniFile)
+                txt = fileread(obj.iniFile);
+                for p = string(properties(obj)')
+                    v = regexp(txt, "(?<=^\s*" + p + "\s*=\s*)[^\r\n]*", "match", "once", "lineanchors");
+                    if ~isempty(v)
+                        obj.(p) = strtrim(v);
                     end
                 end
+            else
+                fprintf(' Missing settings file: %s\n', obj.iniFile)
             end
-
-            % Apply user settings
+            if ischar(obj.siteIds)
+                obj.siteIds = str2num(obj.siteIds); %#ok<ST2NM> str2num is required to handle vectors, eg '[12345 12345]'
+            end
+            
+            % Parse user inputs
             for k = 1:2:nargin
                 obj.(varargin{k}) = varargin{k + 1};
             end
         end
 
-        function obj = authenticate(obj, site_ind)
-            if nargin<2 || isempty(site_ind), site_ind = 1; end
+        function authenticate(obj) 
+            % Get an access token and site info from Tesla API
+            if isempty(obj.refreshToken)
+                error('A refreashToken is required to authenticate with Tesla API')
+            end
 
-            % Get access_token
-            data = webwrite("https://auth.tesla.com/oauth2/v3/token", struct('grant_type', 'refresh_token', 'client_id', 'ownerapi', 'refresh_token', obj.refreshToken, 'scope', 'openid email offline_access'));
-            obj.accessToken = data.access_token;
+            % Get access token
+            url = 'https://auth.tesla.com/oauth2/v3/token';
+            fprintf(' Authenticating: %s >', url)
+            t = webwrite(url, struct('grant_type', 'refresh_token', 'client_id', 'ownerapi', 'refresh_token', obj.refreshToken));
+            obj.accessToken = t.access_token;
+            fprintf(' SUCCESS\n')
 
-            % Get site_id
-            data = webread("https://owner-api.teslamotors.com/api/1/products", weboptions(HeaderFields = {'Authorization' ['Bearer ' obj.accessToken]}));
-            info = data.response(site_ind);
-            obj.siteId = num2str(info.energy_site_id);
+            % Get site info
+            url = 'https://owner-api.teslamotors.com/api/1/products';
+            fprintf(' Getting site info: %s\n', url)
+            t = webread(url, weboptions(HeaderFields = {'Authorization', ['Bearer ' obj.accessToken]}));
+            obj.siteInfo = t.response;
 
-            % Write info to file (optional)
+            % Save site info to file(s)
             if ~isfolder(obj.dataFold)
                 mkdir(obj.dataFold);
             end
-            writelines(jsonencode(info, 'PrettyPrint', true), fullfile(obj.dataFold, obj.siteId + "_info.json"))
+            for k = 1:numel(obj.siteInfo)
+                file = fullfile(obj.dataFold, obj.siteInfo(k).energy_site_id + "_siteInfo.json");
+                writelines(jsonencode(obj.siteInfo(k), 'PrettyPrint', true), file);
+                obj.siteIds(1, k) = obj.siteInfo(k).energy_site_id; % List all site ids
+                fprintf(' > %s\n', file)
+            end
+
+            % Detect timezone
+            if isempty(obj.timeZone)
+                siteId = obj.siteIds(1);
+                fprintf(' Getting site (%d) timezone:', siteId)
+                end_date_str = char(datetime('now', 'TimeZone', 'UTC', 'Format', "yyyy-MM-dd'T'HH:mm:ssZZZZZ") - hours(24) - seconds(1));
+                url = "https://owner-api.teslamotors.com/api/1/energy_sites/" + siteId + "/calendar_history?kind=power&end_date=" + end_date_str;
+                t = webread(url, weboptions(HeaderFields = {'Authorization', ['Bearer ' obj.accessToken]})).response;
+                fprintf(' %s\n', t.installation_time_zone)
+                obj.timeZone = t.installation_time_zone;
+            end
         end
 
-        function download(obj, day)
-            % Download one day's data and write to CSV
-
-            if isempty(obj.accessToken) || isempty(obj.siteId)
-                obj = obj.authenticate;
+        function download(obj, span, siteId)
+            % Download and cache daily data files
+            dayVec = resolveSpan(span, obj.timeZone);
+            if nargin<3 || isempty(siteId)
+                if isempty(obj.siteIds)
+                    obj.authenticate();
+                end
+                siteId = string(obj.siteIds(1)); % Default to the first device
             end
 
-            file = fullfile(obj.dataFold, sprintf('%s', obj.siteId), [char(day, 'yyyyMMdd') '.csv']);
+            for day = dayVec
+                file = fullfile(obj.dataFold, siteId, string(day, 'yyyyMMdd') + ".csv");
+                if isfile(file) && day + hours(30) > datetime(dir(file).date, 'TimeZone', day.TimeZone)
+                    delete(file) % File might be incomplete
+                end
+                if isfile(file)
+                    continue
+                end
+                if ~isfolder(fileparts(file))
+                    mkdir(fileparts(file))
+                end
+                if isempty(obj.accessToken)
+                    obj.authenticate();
+                end
 
-            % Delete incomplete files
-            if isfile(file) && isStale(file, 1.1)
-                delete(file)
+                % Download one day
+                end_date = dateshift(day, 'start', 'day', 'next') - seconds(1); % Can handle daylight savings
+                end_date = datetime(end_date, 'TimeZone', obj.timeZone, 'Format', "yyyy-MM-dd'T'HH:mm:ssZZZZZ");
+                end_date_str = strrep(char(end_date), '+', '%2B'); % API cant handle plus signs
+                url = "https://owner-api.teslamotors.com/api/1/energy_sites/" + siteId + "/calendar_history?kind=power&end_date=" + end_date_str;
+
+
+                % power             Instantaneous power (kW) time series
+                % energy            Energy over interval (kWh per sample)
+                % self_consumption	Portion of solar used on-site
+                % grid_import       Energy imported from the grid
+                % grid_export       Energy exported to the grid
+                % solar             Solar production
+                % battery           Battery charge/discharge
+                % home              Home load / consumption
+                % url = 'https://owner-api.teslamotors.com/api/1/energy_sites/2282236/calendar_history?kind=energy&           end_date=2026-01-08T23:59:59%2B10:30'
+                % url = 'https://owner-api.teslamotors.com/api/1/energy_sites/2282236/calendar_history?kind=energy&period=day&end_date=2026-01-06T23:59:59%2B10:30'
+
+
+                fprintf(' %s >', url)
+                t = webread(url, weboptions(HeaderFields = {'Authorization', ['Bearer ' obj.accessToken]})).response;
+                if isempty(t)
+                    fprintf(' no data\n')
+                    continue
+                end
+                if ~isequal(t.installation_time_zone, end_date.TimeZone)
+                    fprintf(2, ' WARNING: The user provided timezone (%s) zone is not same as Tesla API timezone (%s)', t.installation_time_zone, end_date.TimeZone)
+                end
+
+                % Save to file
+                t = struct2table(t.time_series);
+                t(:, 2:end) = round(t(:, 2:end), 3);
+                fprintf(' %s (n=%g)\n', file, height(t))
+                writetable(t, file)
+                pause(1) % Be nice to server
             end
-
-            % Skip if file already exists
-            if isfile(file)
-                return
-            end
-
-            % Ensure folder exists
-            if ~isfolder(fileparts(file))
-                mkdir(fileparts(file))
-            end
-
-            % Build end_date (1 second before end of day, with correct TZ)
-            end_date = datetime(day, 'TimeZone', obj.timeZone, 'Format', "yyyy-MM-dd'T'HH:mm:ssZZZZZ") + days(1) - seconds(1);
-            url = "https://owner-api.teslamotors.com/api/1/energy_sites/" + obj.siteId + "/calendar_history?kind=power&end_date=" + strrep(char(end_date), '+', '%2B');
-            disp(url + " > " + file)
-
-            data = webread(url, weboptions('HeaderFields', {'Authorization', ['Bearer ' obj.accessToken]})).response;
-
-            if isempty(data)
-                return
-            end
-
-            % Optional TZ sanity check
-            assert(isequal(data.installation_time_zone, end_date.TimeZone), "Set TimeZone to '%s'", data.installation_time_zone)
-
-            % Convert + save
-            t = struct2table(data.time_series);
-            t(:,2:end) = round(t(:,2:end), 3);
-            writetable(t, file)
-
-            pause(1) % Avoid "Too Many Requests"
         end
 
-        function T = read(obj, files, span, timezone)
-            % Read data from files
-            %  T = read(obj, files, span)
-
-            if nargin < 2 || isempty(files), files = fullfile(obj.dataFold, sprintf('%s', obj.siteId)); end
-            if nargin < 3 || isempty(span), span = []; end
-            if nargin < 4 || isempty(timezone), timezone = '+10'; end % NEM timezone is always +10h
-            
-            % List files
-            if isfolder(files)
-                files = fullfile(files, '*.csv');
+        function T = read(obj, span, siteId, timezone)
+            % Read cached data files for a date span and return a table
+            if nargin < 3 || isempty(siteId)
+                if isempty(obj.siteIds)
+                    obj.authenticate();
+                end
+                siteId = string(obj.siteIds(1)); % Default to the first device
             end
-            d = dir(files); % Supports single file or wildcard
-            files = fullfile({d.folder}, {d.name});
+            if nargin < 4 || isempty(timezone)
+                timezone = obj.timeZone; % use system timezone by default
+            end
+            days = resolveSpan(span, obj.timeZone);
+            C = cell(numel(days), 1);
 
-            % Filter on time span
-            if ~isempty(span) && ~isempty(files)
-                [~, names] = fileparts(files);
-                day = datetime(names, 'InputFormat', 'yyyyMMdd');
-                files = files(~(day < checkdate(span{1}) | day > checkdate(span{end})));
+            % Read
+            for k = 1:numel(days)
+                file = fullfile(obj.dataFold, siteId, char(days(k), 'yyyyMMdd') + ".csv");
+                if ~isfile(file), continue, end
+
+                t = readtable(file);
+                if ~ismember(height(t), [288 276 300]) && height(t) > 0
+                    fprintf(' Unexpected number of rows: file = %s,  rows = %3g/288,  start = %s,  stop = %s\n', file, height(t), t.timestamp{[1 end]});
+                end
+                C{k} = t;
             end
 
-            % Check files
-            if isempty(files)
+            % Join
+            C(cellfun(@isempty, C)) = [];
+            if isempty(C)
                 T = [];
                 return
             end
+            T = vertcat(C{:});
 
-            % Read files
-            fprintf('Importing %g files...\n', numel(files))
-            T = cell(1, numel(files));
-            for k = 1:numel(files)
-                T{k} = readtable(files{k});
-
-                % Check data
-                if ~ismember(height(T{k}), [288 276 300]) && height(T{k}) > 0
-                    fprintf(' Unexpected number of rows: file=%s  rows=%-3g  start=%s  stop=%s\n', files{k}, height(T{k}), T{k}.timestamp{[1 end]})
-                end
-            end
-            T = vertcat(T{:});
-
-            % Parse time stamps
-            if ~isempty(T)
-                T.timestamp = datetime(strrep(T.timestamp, 'T', ' '), 'InputFormat', 'yyyy-MM-dd HH:mm:ssZ', 'Format', 'yyyy-MM-dd HH:mm', 'TimeZone', '+09:30');
-            end
-            if ~isempty(timezone)
-                T.timestamp.TimeZone = timezone; % Change time zone (optional)
-            end
-
-            % Convert w to kw
-            T{:, vartype('numeric')} = T{:, vartype('numeric')}/1000;
-
-            % Rename columns
+            % Convert timestamps, include units, derive amounts
+            T.timestamp = datetime(strrep(T.timestamp, 'T', ' '), 'InputFormat', 'yyyy-MM-dd HH:mm:ssZ', 'Format', 'yyyy-MM-dd HH:mm', 'TimeZone', timezone);
+            T{:, vartype('numeric')} = T{:, vartype('numeric')} / 1000;
             T.Properties.VariableNames = regexprep(T.Properties.VariableNames, {'timestamp' '_power'}, {'time' '_kw'});
 
-            % Append amounts (kwh)
+            % Compute kwh
+            T = sortrows(T, 'time');
             ind = endsWith(T.Properties.VariableNames, '_kw');
-            rates = T(:, ind) .* hours(mode(diff(T.time)));
-            rates.Properties.VariableNames = strrep(rates.Properties.VariableNames, '_kw', '_kwh');
-            T = [T rates];
+            E = T(:, ind) .* hours(mode(diff(T.time)));
+            E.Properties.VariableNames = strrep(E.Properties.VariableNames, '_kw', '_kwh');
+            T = [T E];
         end
-
-
-        function T = getData(obj, span)
-            % Read or download prices or usage data
-
-            % Step through days
-            T = []; % Large table to hold all data
-            for day = checkdate(span{1}) : checkdate(span{end})
-
-                % Set output file path (no extension)
-                file = fullfile(obj.dataFold, sprintf('%s', obj.siteId), [char(day, 'yyyyMMdd') '.csv']);
-
-                % Delete incomplete files
-                if obj.downloadFlag && isfile(file) && isStale(file, 1.1)
-                    delete(file)
-                end
-
-                % Download
-                if obj.downloadFlag && ~isfile(file)
-                    if ~isfolder(fileparts(file))
-                        mkdir(fileparts(file))
-                    end
-
-                    end_date = datetime(day, 'TimeZone', obj.timeZone, 'Format', "yyyy-MM-dd'T'HH:mm:ssZZZZZ") + days(1) - seconds(1); % Set end_date to be 1sec before end of the day, must include correct timezone for the region including daylight savings, eg '2023-01-01T23:59:00+10:30' or '2023-01-02T09:29:00Z' (for Australia/Adelaide in summer)
-                    url = "https://owner-api.teslamotors.com/api/1/energy_sites/" + obj.siteId + "/calendar_history?kind=power&end_date=" + strrep(char(end_date), '+', '%2B');
-                    disp(url + ' > ' + file) % Show progress
-                    data = webread(url, weboptions('HeaderFields', {'Authorization' ['Bearer ' obj.accessToken]})).response; % Download one days data
-                    if ~isempty(data)
-                        assert(isequal(data.installation_time_zone, end_date.TimeZone), "Set TimeZone to '%s'", data.installation_time_zone) % Check that time zones match (optional)
-                        data = struct2table(data.time_series); % Convert data to a table
-                        data(:, 2:end) = round(data(:, 2:end), 3); % Round values to 3 decimal places (optional)
-                        writetable(data, file) % Write to csv
-                        pause(1) % Avoid "Too Many Requests"
-                    end
-
-                end
-
-                % Read file
-                if isfile(file)
-                    t = readtable(file);
-                    if ~ismember(size(t,1), [288 276 300]) && size(t,1)>0
-                        fprintf('%s n=%g [%s %s]\n', file, size(t,1), t.timestamp{[1 end]})
-                    end
-                    T = [T; t]; %#ok<AGROW>
-                end
-            end
-
-            T.timestamp = datetime(strrep(T.timestamp, 'T', ' '), 'InputFormat', 'yyyy-MM-dd HH:mm:ssZ', 'Format', 'yyyy-MM-dd HH:mm', 'TimeZone', '+09:30');
-
-        end
-
     end
 end
 
-function day = checkdate(day, default_timezone)
-% Ensure day is a date.
-if isnumeric(day) && day<1000
-    day = datetime + day; % day is an offset
-elseif isnumeric(day)
-    day = datetime(day, 'ConvertFrom', 'datenum'); % day is datenum
-elseif ~isdatetime(day)
-    day = datetime(day); % day is string
+function days = resolveSpan(span, timeZone)
+% Resolve user span input into a vector of whole-day datetimes
+if nargin < 2 || isempty(span)
+    days = [];
+    return
 end
-day = dateshift(day, 'start', 'day');
-if nargin>1
-    day.TimeZone = default_timezone;
+if ~iscell(span)
+    span = {span span};
 end
+d0 = parseDay(span{1}, timeZone);
+if isscalar(span) || isempty(span{2})
+    d1 = d0;
+elseif isnumeric(span{2}) && span{2} < 0
+    d1 = datetime('today', 'TimeZone', timeZone) + span{2};
+else
+    d1 = parseDay(span{2}, timeZone);
+end
+days = dateshift(d0, 'start', 'day') : dateshift(d1, 'start', 'day');
 end
 
-function tf = isStale(file, thresh)
-[~, name] = fileparts(file);
-dt = datetime(name, 'InputFormat', 'yyyyMMdd');
-tf = dt + thresh > datetime(dir(file).date);
+function d = parseDay(x, timeZone)
+% Convert various date inputs to a start-of-day datetime
+if isnumeric(x) && x < 1000
+    d = datetime('today') + x;
+elseif isnumeric(x)
+    d = datetime(x, 'ConvertFrom', 'datenum');
+elseif isdatetime(x)
+    d = x;
+else
+    d = datetime(x);
+end
+d = dateshift(d, 'start', 'day');
+if nargin > 1
+    d.TimeZone = timeZone;
+end
 end

@@ -8,27 +8,27 @@
 % - Use tariffs.m to convert rrp to a 'node specific' "spot prices".
 %
 % Example: 
-%   T = aemo().readData('SA', {'2024-07-01' 0})
+%   T = aemo().read('SA', {'2024-07-01' 0})
 %   https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_202509_sa1.csv
 %
 % Reference:
 %   https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
 
-classdef aemo
+classdef aemo_old
 
     properties
         datafold = fullfile(fileparts(mfilename('fullpath')), 'data')
-        download = 12/24 % Both a flag to say if downloads are allowed and a threshold to say when an incomplete file is deemed to be 'stale' (day fraction)
+        downloadThresh = 12/24 % Both a flag to say if downloads are allowed and a threshold to say when an incomplete file is deemed to be 'stale' (day fraction)
     end
 
     methods
-        function obj = aemo(varargin)
+        function obj = aemo_old(varargin)
             for k = 1:2:nargin
                 obj.(varargin{k}) = varargin{k+1};
             end
         end
 
-        function T = readData(obj, region, span, fields)
+        function T = read(obj, region, span, fields)
             % Get AEMO price (and demand) data.
 
             % Defaults
@@ -44,7 +44,7 @@ classdef aemo
 
             % Read
             region = upper(region);
-            T = arrayfun(@(x)obj.downloadData(region, x), months, 'UniformOutput', false);
+            T = arrayfun(@(x)obj.download(region, x), months, 'UniformOutput', false);
             T = vertcat(T{:});
 
             % Insert 'time' and 'spot_price' columns
@@ -85,7 +85,7 @@ classdef aemo
             end
         end
 
-        function T = downloadData(obj, region, month)
+        function T = download(obj, region, month)
             % Get one month of AEMO price (and demand) data.
 
             assert(ismember(region, ["NSW" "QLD" "VIC" "SA" "TAS"]), 'Invalid region, use: "NSW" "QLD" "VIC" "SA" "TAS"')

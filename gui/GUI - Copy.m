@@ -1,40 +1,49 @@
 function GUI
 %% Paths
-rootFold = fileparts(mfilename('fullpath'));
-fileIcon = fullfile(rootFold, 'gui', 'file.png');
-newfIcon = fullfile(rootFold, 'gui', 'new.png');
-saveIcon = fullfile(rootFold, 'gui', 'save.png');
-savsIcon = fullfile(rootFold, 'gui', 'saveas.png');
-foldIcon = fullfile(rootFold, 'gui', 'folder.png');
-openIcon = fullfile(rootFold, 'gui', 'open.png');
-helpIcon = fullfile(rootFold, 'gui', 'help.png');
-rmpvIcon = fullfile(rootFold, 'gui', 'rmpv.png');
-rmnvIcon = fullfile(rootFold, 'gui', 'rmnv.png');
-flipIcon = fullfile(rootFold, 'gui', 'flip.png');
-refrIcon = fullfile(rootFold, 'gui', 'refresh.png');
-copyIcon = min(imresize(imread(fullfile(rootFold, 'gui', 'copy.png')),[16 16])+60,256);
-delrIcon = fullfile(rootFold, 'gui', 'deleterow.png');
-units = ["kw" "kwh" "$" "c" "c/kwh" "custom"]; units = categorical(units, units);
-zones = ["+08:00" "+09:30" "+10:00" "+10:30" "+11:00" "Perth" "Adelaide" "Darwin" "Brisbane" "Sydney"]; zones = categorical(zones, zones);
+guiFold = fileparts(mfilename('fullpath'));
+rootFold = fileparts(guiFold);
+
 % Icons:
 % D:\MATLAB\enkit\gui
 % C:\Program Files\MATLAB\R2024b\toolbox\matlab\icons
 % https://www.iconarchive.com/search?q=up+arrow
 % https://www.alt-codes.net/arrow_alt_codes.php
+fileIcon = fullfile(guiFold, 'icons', 'file.png');
+newfIcon = fullfile(guiFold, 'icons', 'new.png');
+saveIcon = fullfile(guiFold, 'icons', 'save.png');
+savsIcon = fullfile(guiFold, 'icons', 'saveas.png');
+foldIcon = fullfile(guiFold, 'icons', 'folder.png');
+openIcon = fullfile(guiFold, 'icons', 'open.png');
+helpIcon = fullfile(guiFold, 'icons', 'help.png');
+rmpvIcon = fullfile(guiFold, 'icons', 'rmpv.png');
+rmnvIcon = fullfile(guiFold, 'icons', 'rmnv.png');
+flipIcon = fullfile(guiFold, 'icons', 'flip.png');
+refrIcon = fullfile(guiFold, 'icons', 'refresh.png');
+copyIcon = fullfile(guiFold, 'icons', 'copy.png');
+delrIcon = fullfile(guiFold, 'icons', 'deleterow.png');
+cbarIcon = loadIcon(fullfile(guiFold, 'icons', 'colorbar.png'));
+    function rgb = loadIcon(file)
+        [rgb, ~, alpha] = imread(file);
+        rgb = im2double(rgb);
+        rgb(repmat(alpha == 0, [1 1 3])) = nan;
+    end
 
-%% Main figure
+units = ["kw" "kwh" "$" "c" "c/kwh" "custom"]; units = categorical(units, units);
+zones = ["+08:00" "+09:30" "+10:00" "+10:30" "+11:00" "Perth" "Adelaide" "Darwin" "Brisbane" "Sydney"]; zones = categorical(zones, zones);
+
+%% Figure
 W = 900; H = 460;
 delete(findall(0, 'Tag', 'enkit'))
 warning off MATLAB:ui:containers:SizeChangedFcnDisabledWhenAutoResizeOn
 gui = uifigure  ('Position', [100 400 W+20 H+20], 'Name', 'EnKit', 'Tag', 'enkit');
 tab = uitabgroup('Position', [ 10  10 W    H   ], 'Parent', gui); % Tab group
 
-%% Data
-ht = uitab(tab, 'Title', 'Data');
+%% Main
+ht = uitab(tab, 'Title', 'Main');
 uilabel          (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Manage, save, load and plot data.', 'FontSize', 14);
 uibutton         (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'Readme.txt')), 'Tooltip', 'Open readme.txt');
 uilabel          (ht,         'Position', [   10 H-100    40    30], 'Text', 'Input:');
-hRoot = uieditfield(ht,'text','Position', [   50 H-100 W-220    30], 'Value', rootFold, 'Placeholder', 'Select file');
+hRoot = uieditfield(ht,'text','Position', [   50 H-100 W-220    30], 'Value', fullfile(guiFold, 'data'), 'Placeholder', 'Select file');
 uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', newfIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)newData(hRoot),          'Tooltip', 'Start new');
 uibutton         (ht, 'push', 'Position', [W-120 H-100    30    30], 'Icon', saveIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)saveData(hRoot,0),       'Tooltip', 'Save data');
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    30    30], 'Icon', savsIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)saveData(hRoot,1),       'Tooltip', 'Save as...');
@@ -51,27 +60,28 @@ hStart = uieditfield(ht,      'Position', [W-160 H-260   120    30], 'Placeholde
 uibutton         (ht,         'Position', [W- 40 H-260    30    30], 'Text', '↦', 'FontSize', 16, 'ButtonPushedFcn', @(~,~)trimTime(hStart.Value,1), 'Tooltip', 'Keep only points after this time');
 hStop = uieditfield(ht,       'Position', [W-130 H-300   120    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton         (ht,         'Position', [W-160 H-300    30    30], 'Text', '↤', 'FontSize', 18, 'ButtonPushedFcn', @(~,~)trimTime(hStop.Value,0), 'Tooltip', 'Keep only points beofre this time');
-uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Plot',               'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
+uibutton         (ht,         'Position', [W- 80    50    70    30], 'Text', 'Plot',               'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
     function newData(h)
         h.Value = rootFold;
         updateData([])
     end
     function saveData(h, saveas)
         if saveas || isempty(h.Value)
-            [file, path] = uiputfile('*.parquet', 'Save as', h.Value); figure(gui)
+            [file, path] = uiputfile('*.mat', 'Save as', h.Value); figure(gui)
             if isequal(file, 0), return, end
             h.Value = fullfile(path, file);
         end
         if ~isempty(h.Value) && ~isempty(gui.UserData)
-            parquetwrite(h.Value, gui.UserData);
+            T = gui.UserData;
+            save(h.Value, 'T');
         end
         figure(gui)
     end
     function loadData(h)
-        [file, path] = uigetfile('*.parquet', 'Open', h.Value); figure(gui)
+        [file, path] = uigetfile('*.mat', 'Open', h.Value); figure(gui)
         if isequal(file, 0), return, end
         h.Value = fullfile(path, file);
-        T = parquetread(h.Value);
+        T = load(h.Value, 'T').T;
         updateData(T)
     end
     function editData(h,e)
@@ -221,7 +231,39 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
     function plotRows(h)
         rows = getRow(h);
         if isempty(rows), return, end
-        figmode(figure, 'dark', 'MenuBar','none','ToolBar','figure', 'Name', 'EnKit Plot', 'Tag', 'enkit');
+        fig = figmode(figure, 'dark', 'MenuBar',' none', 'ToolBar', 'none', 'Name', 'EnKit Plot', 'Tag', 'enkit');
+
+        set(fig, ...
+            WindowStyle = 'normal',...
+            DefaultAxesXGrid = 'on', ...
+            DefaultAxesYGrid = 'on', ...
+            DefaultAxesGridAlpha = 0.1, ...
+            DefaultAxesGridColor = [0.5 0.5 0.5],...
+            DefaultLineMarkerSize = 10,...
+            DefaultAxesXColor = [0.5 0.5 0.5], ...
+            DefaultAxesYColor = [0.5 0.5 0.5], ...
+            DefaultAxesXLimitMethod = 'tight', ...
+            DefaultAxesYLimitMethod = 'tight', ...
+            DefaultUicontrolFontWeight = 'bold');
+        %addToolbarExplorationButtons(gcf); %adds toolbar icons when ToolBar='figure'
+
+        % Toolbar
+        H = uitoolbar(fig);
+        uipushtool(H, 'Tooltip', 'Toggle Colorbar', 'CData', loadIcon(saveIcon), 'ClickedCallback',@(~,~)saveFig(fig));
+        uitoolfactory(H, 'Exploration.ZoomIn');
+        uitoolfactory(H, 'Exploration.ZoomOut');
+        uitoolfactory(H, 'Exploration.Pan');
+        uitoolfactory(H, 'Exploration.DataCursor');
+        function saveFig(fig)
+            defaultPath = enkitPath('GUI', 'plots');
+            if ~isfolder(defaultPath)
+                mkdir(defaultPath)
+            end
+            [file, path] = uiputfile({'*.png'; '*.jpg'}, 'Save as', defaultPath);
+            if isequal(file, 0), return, end
+            figsave(fig, fullfile(path, file), [1200 900])
+        end
+
         T = gui.UserData;
         n = numel(rows);
         for k = 1:n
@@ -233,13 +275,15 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
             heatmapTimeVsDatePlus(T, 'time', var, col, lbl, unit, pos);
         end
         linkallaxes
-     end
+    end
     function updateData(T)
         if isempty(T)
             gui.UserData = [];
             set(findobj(gui, 'Tag', 'start_time'), 'Value', '')
             set(findobj(gui, 'Tag', 'stop_time'), 'Value', '')
             hData.Data = {};
+            hImport.Items = {};
+            hExport.Items = {};
             gui.Name = 'EnKit';
             return
         end
@@ -275,6 +319,18 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         end
         addStyle(hData, uistyle('FontColor', [0.4 0.4 0.4]), 'column', 4:i1-1)
 
+        % Update Tariffs tab
+        t = T.Properties.VariableNames(vartype('numeric'));
+        hImport.Items = t;
+        hExport.Items = t;
+        if any(ismember(t, 'import_kw'))
+            hImport.Value = 'import_kw';
+        end
+        if any(ismember(t, 'export_kw'))
+            hExport.Value = 'export_kw';
+        end
+
+        % Update app title
         set(findobj(gui, 'Tag', 'start_time'), 'Value', string(min(T.time), 'yyyy-MM-dd HH:mm'))
         set(findobj(gui, 'Tag', 'stop_time'), 'Value', string(max(T.time)+rez, 'yyyy-MM-dd HH:mm'))
         gui.Name = sprintf('%g days, %g properties, %gm rez, %s to %s - EnKit', round(days(range(T.time))), width(T), minutes(rez), char(T.time(1),'yyyy-MM-dd'), char(dateshift(T.time(end),'end','day'), 'yyyy-MM-dd'));
@@ -301,10 +357,10 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
     end
 
 %% Meter
-fold = fullfile(rootFold, 'nem', 'data');
+fold = fullfile(rootFold, 'meter', 'data');
 ht = uitab(tab, 'Title', 'Meter');
-uihyperlink      (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Import smart meter usage data using NEM12 csv files. See help for download instructions =>', 'URL', 'https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard');
-uibutton         (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold,'nem','Readme.txt')), 'Tooltip', 'Open readme.txt');
+uihyperlink      (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Import smart meter data. See help (?) for download instructions.', 'URL', 'https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard');
+uibutton         (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'meter', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
 uilabel          (ht,         'Position', [   10 H-100    40    30], 'Text', 'Input:');
 h = uieditfield  (ht, 'text', 'Position', [   50 H-100 W-220    30], 'Value', fold, 'Placeholder', 'Select file or folder');
 uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', fileIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFile(h, '*.csv'), 'Tooltip', 'Select a file...');
@@ -319,7 +375,7 @@ uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Im
 fold = fullfile(rootFold, 'battery', 'data');
 ht = uitab(tab, 'Title', 'Battery');
 uilabel         (ht,          'Position', [   10 H- 60 W- 40    30], 'Text', 'Import battery data.', 'FontSize', 14);
-uibutton        (ht, 'push',  'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold,'nem','Readme.txt')), 'Tooltip', 'Open readme.txt');
+uibutton        (ht, 'push',  'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'meter', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
 uilabel         (ht,          'Position', [   10 H-100    40    30], 'Text', 'Input:');
 h = uieditfield (ht, 'text',  'Position', [   50 H-100 W-220    30], 'Value', fold, 'Placeholder', 'Select file or folder');
 uibutton        (ht, 'push',  'Position', [W-160 H-100    30    30], 'Icon', fileIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFile(h, '*.csv'), 'Tooltip', 'Select a file...');
@@ -360,11 +416,11 @@ t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
 uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
     function importAemoData(state, span)
-        T = aemo().readData(state, span);
+        T = aemo().read(state, span);
         appendData(T);
     end
     function downloadAemoData(state, span)
-        aemo().downloadData(state, span, hours(12))
+        aemo().download(state, span, hours(12))
     end
 
 %% Amber
@@ -383,11 +439,11 @@ t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
 uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
     function importAmberData(state, span)
-        T = aemo().readData(state, span);
+        T = aemo().read(state, span);
         appendData(T);
     end
     function downloadAmberData(state, span)
-        aemo().downloadData(state, span, hours(12))
+        aemo().download(state, span, hours(12))
     end
 
 %% PVoutput
@@ -413,7 +469,7 @@ uibutton        (ht, 'push', 'Position', [W- 40 H-190    30    30], 'Icon', refr
 
 plot(hPvMap, load('coastlines.mat').coastlon, load('coastlines.mat').coastlat, 'Color', [0.6 0.6 0.6], 'LineWidth', 1.5, 'HitTest', 'off'); % Plot coastline
 refreshPvSiteInfo(0) % 0 = dont refresh (faster)
-set(datacursormode(gui), 'UpdateFcn', @(~,e)myDataTip(e), 'SnapToDataVertex', 'on')
+set(datacursormode(gui), 'UpdateFcn', @(~,e)updateDataTip(e), 'SnapToDataVertex', 'on')
 
     function downloadPvoutoutInfo(staleThreshold)
         pvoutput().downloadInfo(hSysId.Value, staleThreshold)
@@ -435,25 +491,6 @@ set(datacursormode(gui), 'UpdateFcn', @(~,e)myDataTip(e), 'SnapToDataVertex', 'o
         hSysId.UserData = S; % Store data in hSysId
         selectPvSite(hSysId.Value)
     end
-    function selectPvSite(sysId)
-        sysId = string(sysId);
-        hSysId.Value = sysId;
-        hPvUrl.URL = "https://pvoutput.org/listmap.jsp?sid=" + sysId;
-        delete(findall(hPvMap, 'Tag', 'selectedPVsite'))
-        S = hSysId.UserData;
-        s = S(string(S.sysId)==sysId, :);
-        if ~isempty(s)
-            scatter(hPvMap, s.lon, s.lat, 400, s.gaps, 'p', 'Tag', 'selectedPVsite', 'LineWidth', 2, 'HitTest', 'off')
-            hPvInfo.Value = struct2str(s);
-        else
-            hPvInfo.Value = '';
-        end
-    end
-    function txt = myDataTip(event) % Jnaky
-        s = event.Target.UserData;
-        selectPvSite(s.sysId)
-        txt = sprintf('Lat: %.4f\nLon: %.4f', event.Position([2 1]));
-    end
 
 
 %% Sim Battery
@@ -462,11 +499,55 @@ ht = uitab(tab, 'Title', 'Sim Battery');
 %% Sim Solar
 ht = uitab(tab, 'Title', 'Sim Solar');
 
-%% Tariff
-ht = uitab(tab, 'Title', 'Tariff');
-
-%% Cost
-ht = uitab(tab, 'Title', 'Cost');
+%% Tariffs
+ht = uitab(tab, 'Title', 'Tariffs');
+tariffList = unique(tariffs().tariff, 'stable');
+uilabel         (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Predict usage cost.', 'FontSize', 14);
+uibutton        (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'meter', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
+uilabel         (ht,         'Position', [   10 H-100    40    30], 'Text', 'Tariff:');
+h = uidropdown  (ht,         'Position', [   50 H-100   140    30], 'Items', tariffList, 'ValueChangedFcn', @(h,~)previewTariff(h,ht));
+uilabel         (ht,         'Position', [  210 H-100    40    30], 'Text', 'Import:');
+hImport = uidropdown(ht,     'Position', [  250 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
+uilabel         (ht,         'Position', [  410 H-100    40    30], 'Text', 'Export:');
+hExport = uidropdown(ht,     'Position', [  450 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
+uibutton        (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Caclulate', 'ButtonPushedFcn', @(~,~)calcTariffs(h), 'Tooltip', 'Read data');
+% hTrfPlt = uiaxes (ht,        'Position', [   30    30   660   290], 'XLim', [0 24], 'YLim', [0 65], 'XGrid', 'on', 'YGrid', 'on', 'NextPlot', 'add');
+% xlabel(hTrfPlt, 'Time of day (hours)'), ylabel(hTrfPlt, 'Price (c/kWh)')
+    function calcTariffs(h)
+        T = gui.UserData;
+        if ~isempty(T)
+            try
+                time = T.time;
+                [buy_ckwh, sell_ckwh, supply_c] = tariffs(h.Value, T.time);
+                cost_c = buy_ckwh + sell_ckwh + supply_c;
+                t = table(time, buy_ckwh, sell_ckwh, supply_c, cost_c);
+                appendData(t);
+            catch ex
+                fprintf(2, 'Error: %s\n', ex.message);
+            end
+        end
+    end
+    function previewTariff(h, ht)
+        delete(findobj(ht, 'Tag', 'previewTariff'))
+        dayList = tariffs(h.Value).date';
+        n = numel(dayList);
+        W = 1/n;
+        for k = 1:numel(dayList)
+            ax = uiaxes(ht, 'Units', 'normalized', 'Position', [W*(k-1)+0.01 0.01 W*0.95 0.75], 'XLim', [0 24], 'YLim', [0 65], 'XGrid', 'on', 'YGrid', 'on', 'Tag', 'previewTariff');
+            xlabel(ax, 'Time of day (hours)')
+            if k == 1 
+                ylabel(ax, 'Price (c/kWh)')
+            end
+            time = dayList(k) + hours(0:0.5:23.5);
+            [buy_price, sell_price, supply] = tariffs(h.Value, time);
+            time_hrs = hours(timeofday(time));
+            plotstepspread(ax, time_hrs, supply*nan, [], [0.8 0.5 0], sprintf('Supply=%.2f c/day', sum(supply)), 'xy')
+            plotstepspread(ax, time_hrs, buy_price, [], 'r', sprintf('Av.Buy=%.2f c/kWh', mean(buy_price)), 'xy')
+            plotstepspread(ax, time_hrs, sell_price, [], 'g', sprintf('Av.Sell=%.2f c/kWh', mean(sell_price)), 'xy')
+            legend (ax, 'show', 'location', 'SE', 'FontSize', 10, 'FontWeight', 'bold')
+            title(ax, string(dayList(k)))
+        end
+    end
 
 %% Helper Functions
     function selectFile(h, type)
@@ -488,7 +569,7 @@ function showHelp(helpFile)
 txt = fileread(helpFile);  % Read file
 txt = replace(txt, {'&' '<' '>'}, {'&amp;' '&lt;' '&gt;'});  % Escape HTML for safe display
 urls = regexp(txt, '(https?://[^\s]+)', 'match');  % Find URLs
-txt = regexprep(txt, '(https?://[^\s]+)', '<a href="$1" target="_blank">$1</a>');  % Make links clickable
+txt = regexprep(txt, '(https?://[^\s]+)', '<u>$1</u>');  % Underline links
 html = ['<html><head><base target="_blank"></head><pre style="white-space:pre-wrap; font-family:Consolas;">' txt '</pre></html>'];  % Make HTML
 close(findall(0, 'Name', helpFile))  % Close old figures
 fig = uifigure('Name', helpFile, 'Tag', 'enkit', 'Position', [200 200 800 600]);  % Create uifigure
@@ -510,10 +591,10 @@ if ~isprop(T, 'rez')
 end
 for k = 1:width(T)
     if isempty(T.Properties.CustomProperties.C1{k})
-        T.Properties.CustomProperties.C1{k} = [0.0 0.9 0.0];
+        T.Properties.CustomProperties.C1{k} = [1 0 0];
     end
     if isempty(T.Properties.CustomProperties.C2{k})
-        T.Properties.CustomProperties.C2{k} = [1.0 0.2 0.2];
+        T.Properties.CustomProperties.C2{k} = [0 1 0];
     end
 end
 if isempty(T.Properties.VariableUnits)
@@ -551,3 +632,14 @@ function str = struct2str(S)
 t = [S.Properties.VariableNames; string(table2cell(S))];
 str = sprintf('%-11s %s\n', t{:});
 end
+
+function txt = updateDataTip(e) % Hacky
+if e.Target.Tag == "PVsite"
+    
+    selectPvSite(s.sysId)
+    txt = sprintf('Lat: %.4f\nLon: %.4f', e.Position([2 1]));
+else
+
+end
+end
+    s = e.Target.UserData;

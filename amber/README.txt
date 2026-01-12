@@ -26,3 +26,14 @@ Links:
   https://www.sapowernetworks.com.au/your-power/billing/pricing-tariffs/
   https://www.sapowernetworks.com.au/your-power/billing/pricing-tariffs/electricity-tariffs/
   https://www.sapowernetworks.com.au/public/download.jsp?id=9508
+
+
+
+Reviews:
+  https://www.youtube.com/watch?v=yOCfJ4T_oxQ (focuses on limitations)
+  https://www.youtube.com/watch?v=GTk_XUqvAOE (app description)
+  
+Info:
+  https://www.youtube.com/watch?v=SN0xQEamVck  (amber app)
+  https://www.youtube.com/watch?v=yL3jbCSJHzE  (long podcast)
+  https://www.youtube.com/watch?v=thzrdBzJF4M

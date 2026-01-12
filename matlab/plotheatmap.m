@@ -75,7 +75,7 @@ xline(xlim, 'color', get(groot, 'DefaultAxesXColor'))
 yline(ylim, 'color', get(groot, 'DefaultAxesXColor'))
 
 % Data cursor
-set(datacursormode(gcf), 'UpdateFcn', @(obj, evt)dataTip(obj, evt));
+set(datacursormode(gcf), 'UpdateFcn', @(~, e)updateDataTip(e));
 
 % Outputs
 if ~nargout
@@ -83,38 +83,38 @@ if ~nargout
 end
 end
 
-function txt = dataTip(~, evt)
+function txt = updateDataTip(e)
 % Custom data cursor for 2D image-like data
 
-if evt.Target.Tag ~= "heatmap"
-    % Not heatmap, use default datatip
-    txt = sprintf('X: %g\nY: %g',evt.Position);
-
-else
-    % Heatmap
-    if ~isempty(evt.Target.UserData)
-        A = evt.Target.UserData;
-    else
-        A = evt.Target.CData;
-    end
-    xdata = evt.Target.XData;
-    ydata = evt.Target.YData;
-
-    [ny, nx] = size(A);
-    xCenters = linspace(xdata(1), xdata(2), nx);
-    yCenters = linspace(ydata(1), ydata(2), ny);
-
-    dx = mode(diff(xCenters));
-    dy = mode(diff(yCenters));
-    xEdges = [xCenters - dx/2, xCenters(end) + dx/2];
-    yEdges = [yCenters - dy/2, yCenters(end) + dy/2];
-
-    xPos = num2ruler(evt.Position(1), evt.Target.Parent.XAxis);
-    yPos = num2ruler(evt.Position(2), evt.Target.Parent.YAxis);
-    xIdx = discretize(xPos, xEdges);
-    yIdx = discretize(yPos, yEdges);
-
-    txt = sprintf('val = %.4f\nx: %s\ny: %s', A(yIdx, xIdx), string(xCenters(xIdx)), string(yCenters(yIdx)));
+% Skip if something else was clicked
+if e.Target.Tag ~= "heatmap"
+    txt = sprintf('X: %g\nY: %g',e.Position);
+    return
 end
+
+% Heatmap
+if ~isempty(e.Target.UserData)
+    A = e.Target.UserData;
+else
+    A = e.Target.CData;
+end
+xdata = e.Target.XData;
+ydata = e.Target.YData;
+
+[ny, nx] = size(A);
+xCenters = linspace(xdata(1), xdata(2), nx);
+yCenters = linspace(ydata(1), ydata(2), ny);
+
+dx = mode(diff(xCenters));
+dy = mode(diff(yCenters));
+xEdges = [xCenters - dx/2, xCenters(end) + dx/2];
+yEdges = [yCenters - dy/2, yCenters(end) + dy/2];
+
+xPos = num2ruler(e.Position(1), e.Target.Parent.XAxis);
+yPos = num2ruler(e.Position(2), e.Target.Parent.YAxis);
+xIdx = discretize(xPos, xEdges);
+yIdx = discretize(yPos, yEdges);
+
+txt = sprintf('val = %.4f\nx: %s\ny: %s', A(yIdx, xIdx), string(xCenters(xIdx)), string(yCenters(yIdx)));
 
 end
