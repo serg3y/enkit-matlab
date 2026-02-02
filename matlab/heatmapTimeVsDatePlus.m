@@ -34,9 +34,11 @@ end
 timestep = mode(diff(T.(tvar))); % Infer time step, assume its regular
 if isscalar(units)
     if strcmpi(units, 'kw')
-        units = ["kW" "kWh"]; f1 = @(x)sum(x * hours(timestep), 1, 'omitmissing'); % Convert kW to kWh
+        %units = ["kW" "kWh"]; f1 = @(x)sum(x * hours(timestep), 1, 'omitmissing'); % Convert kW to kWh
+        units = ["kW" "kWh"]; f1 = @(x)sum(x * hours(timestep), 1); % Convert kW to kWh
     elseif any(strcmpi(units, {'c' '$' 'kwh'}))
-        units = [units units]; f1 = @(x)sum(x, 1, 'omitmissing'); % Sum common quantaties
+        % units = [units units]; f1 = @(x)sum(x, 1, 'omitmissing'); % Sum common quantaties
+        units = [units units]; f1 = @(x)sum(x, 1); % Sum common quantaties
     else
         units = [units units];
     end
@@ -167,8 +169,8 @@ linkaxes([ax ax3], 'y')
             % Top plot
             if numel(unique(T.date(j))) >= 2
                 hLine = plotLine(ax2, Ti, 'date', vvar, f1, units(2), 'xy');
-                plotArea(ax2, Ti, 'date', vvar, @(x)f1(max(x, 0)), col(1, :), 'xy') % Positive values
-                plotArea(ax2, Ti, 'date', vvar, @(x)f1(min(x, 0)), col(2, :), 'xy') % Negative values
+                plotArea(ax2, Ti, 'date', vvar, @(x)f1(max(x, 0, 'includemissing')), col(1, :), 'xy') % Positive values
+                plotArea(ax2, Ti, 'date', vvar, @(x)f1(min(x, 0, 'includemissing')), col(2, :), 'xy') % Negative values
                 legend(ax2, hLine, 'Location', 'NE', 'FontSize', 12, 'EdgeColor', [.4 .4 .4], 'BackgroundAlpha', 0.5)
                 set(ax2.XAxis, 'FontSize', 0.1)
                 xlim(ax2, XLim)
@@ -177,8 +179,8 @@ linkaxes([ax ax3], 'y')
             % Right plot
             if numel(unique(T.tod(i))) >= 2
                 hLine = plotLine(ax3, Ti, 'tod', vvar, f2 , units(1), 'yx');
-                plotArea(ax3, Ti, 'tod', vvar, @(x)f2(max(x, 0)), col(1, :), 'yx')
-                plotArea(ax3, Ti, 'tod', vvar, @(x)f2(min(x, 0)), col(2, :), 'yx')
+                plotArea(ax3, Ti, 'tod', vvar, @(x)f2(max(x, 0, 'includemissing')), col(1, :), 'yx')
+                plotArea(ax3, Ti, 'tod', vvar, @(x)f2(min(x, 0, 'includemissing')), col(2, :), 'yx')
                 legend(ax3, hLine, 'Location', 'NE', 'FontSize', 12, 'EdgeColor', [.4 .4 .4], 'BackgroundAlpha', 0.5)
                 set(ax3.YAxis, 'FontSize', 0.1)
                 ax3.YAxis.TickLabelFormat = ax.YAxis.TickLabelFormat;
@@ -206,18 +208,16 @@ linkaxes([ax ax3], 'y')
     end
 end
 
-
 function h = plotLine(axx, Ti, var, vvar, fun, units, mode)
 G = groupsummary(Ti, var, fun, vvar);
-h = plotsteps(axx, G.(var), G{:, 3}, 'y', sprintf('%.5g %s', mean(G{:, 3}), units), [], mode, 'LineWidth', 1);
+lbl = sprintf('%.5g %s', mean(G{:, 3}, 1, 'omitmissing'), units);
+h = plotsteps(axx, G.(var), G{:, 3}, 'y', lbl, NaN, mode, 'LineWidth', 1);
 end
-
 
 function plotArea(axx, Ti, var, vvar, fun, col, mode)
 G = groupsummary(Ti, var, fun, vvar);
 plotstepspread(axx, G.(var), G{:, 3}, [], col(1, :), [], mode)
 end
-
 
 function cmap = makeCmap(col)
 if isrow(col)
@@ -227,15 +227,3 @@ else
     cmap = [flipud(makeCmap(col(2, :))); makeCmap(col(1, :))];
 end
 end
-
-
-% function syncAxes(ax, ax2, mode)
-% if mode == "x"
-%     rand
-%     ax2.XLim  = ax.XLim;
-%     ax2.XTick = ax.XTick;
-% else
-%     ax2.YLim  = ax.YLim;
-%     ax2.YTick = ax.YTick;
-% end
-% end

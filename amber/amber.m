@@ -26,6 +26,7 @@ classdef amber
         siteId
         state
         nmi
+        startDate
     end
 
     methods
@@ -76,164 +77,123 @@ classdef amber
         end
 
         function T = getUsage(obj, span)
-            T = getData(obj, 'usage', span, 5);
+            T = downloadData(obj, 'usage', span, 5);
         end
         
         function T = getPrices(obj, span)
-            T = getData(obj, 'prices', span, 5);
+            T = downloadData(obj, 'prices', span, 5);
         end
 
-        function T = getData(obj, type, span, rez)
+        function T = downloadData(obj, type, span, rez)
             % Read or download prices or usage data
             if nargin < 4, rez = []; end  % Use default 5 min resolution
 
-            % Collect results in a cell
-            tables = {};
-
+            % Initialise
+            T = {};
             for day = checkdate(span(1)) : checkdate(span(end))
                 % Ignore time zones
                 day.TimeZone = ''; 
 
-                % Choose identifier depending on type
-                switch type
-                    case 'usage',  t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
-                    case 'prices', t = sprintf('%s_%s',    type, obj.state);
-                    otherwise, error('Unknown type: %s', type);
+                % Skip if day is before startDate
+                if ~isempty(obj.startDate) && day < datetime(obj.startDate)
+                    continue
                 end
 
-                % Build file path (no extension)
-                file = fullfile(obj.datafold, t, char(day, 'yyyyMMdd'));
+                % Choose identifier depending on type
+                switch type
+                    case 'usage', t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
+                    case 'prices', t = sprintf('%s_%s', type, obj.state);
+                end
+
+                % File path
+                file = fullfile(obj.datafold, t, [char(day, 'yyyyMMdd') '.json']);
                 if ~isfolder(fileparts(file))
                     mkdir(fileparts(file));
                 end
 
-                % % Check cached file
-                % json_file = dir([file '.json']);
-                % isStale = @(f, d) datetime(f.date) < d + 1 + hours(1) && datetime(f.date) + minutes(30) < datetime;
-                % if ~isempty(json_file) && isStale(json_file, day)
-                %     delete(fullfile(json_file.folder, json_file.name));
-                %     json_file = [];
-                % end
-
-                % Check cached file
-                json_file = dir(file + ".json");
-                if ~isempty(json_file)
-                    t = datetime(json_file.date);
+                % Delete file if its stale
+                if isfile(file)
+                    info = dir(file);
+                    t = datetime(info.date);
                     if t < day + days(1) + hours(1) && t + minutes(30) < datetime('now') % check if stale
-                        delete(fullfile(json_file.folder, json_file.name));
-                        json_file = [];
+                        delete(file);
                     end
                 end
 
-                % Load or download JSON
-                if isempty(json_file)
-                    url_span = sprintf('startDate=%s&endDate=%s', ...
-                        char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd'));
+                % Download file if required
+                if ~isfile(file)
+                    url_span = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd'));
                     if isempty(rez)
                         url_rez = '';
                     else
                         url_rez = sprintf('&resolution=%g', rez);
                     end
                     url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span url_rez];
-                    [err, json_file] = obj.geturl(url);
+                    [err, data] = obj.geturl(url);
 
                     if err
-                        fprintf(2, 'Error: %s\n', json_file);
+                        fprintf(2, 'Warning: %s\n', data);
                         continue
                     end
 
-                    filewrite([file '.json'], json_file);
-                else
-                    json_file = fileread([file '.json']);
+                    filewrite(file, data);
                 end
 
                 % Skip if no data
-                if numel(json_file) <= 2
+                if numel(file) <= 2
                     fprintf('  %s - no data\n', day);
                     continue
                 end
 
                 % Convert json to table and store
-                tables{end+1} = obj.readDataFile(type, [file '.json']); %#ok<AGROW>
+                T{end+1} = obj.readDataFile(type, file); %#ok<AGROW>
             end
 
             % Combine all tables
-            if isempty(tables)
+            if isempty(T)
                 T = table(); % return empty if nothing collected
             else
-                T = vertcat(tables{:});
+                T = vertcat(T{:});
             end
         end
 
-
-
-
-        function T = getData_old(obj, type, span, rez)
-            % Read or download prices or usage data
-
-            if nargin < 4, rez = []; end % Use default 5 min resolution
-
-            % Step through days
-            T = []; % Large table to hold all data
-            for day = checkdate(span(1)) : checkdate(span(end))
-
-                % Set output file path (no extension)
-                switch type
-                    case 'usage',  file = fullfile(obj.datafold, sprintf('%s_%s', type, obj.nmi  ), char(day, 'yyyyMMdd'));
-                    case 'prices', file = fullfile(obj.datafold, sprintf('%s_%s', type, obj.state), char(day, 'yyyyMMdd'));
-                end
-                if ~isfolder(fileparts(file))
-                    mkdir(fileparts(file));
-                end
-
-                % Check if cached files exist
-                json_file = dir([file '.json']);
-
-                % Check if cached file is stale
-                if ~isempty(json_file) && ...                            % if JSON file exists, but ...
-                        datetime(json_file.date) < day + 1 + 1/24 && ... % file was saved near day's end, and ...
-                        datetime(json_file.date) + 0.5/24 < datetime     % file is more then 30 min old, then
-                    delete(fullfile(json_file.folder, json_file.name))   % delete the file, as it may be stale
-                    json_file = [];
-                end
-                
-                % Load cached json
-                if ~isempty(json_file)
-                    json = fileread([file '.json']);
-
-                else
-                    % Download
-                    url_span = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd')); % Time span component
-                    if ~isempty(rez)
-                        url_rez = sprintf('&resolution=%g', rez);
-                    else
-                        url_rez = '';
-                    end
-                    url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span url_rez]; % REST URL query
-                    [err, json] = obj.geturl(url); % Download
-
-                    % Skip on error
-                    if err
-                        fprintf(2, 'Error: %s\n', json)
-                        continue
-                    end
-
-                    % Write json to file, even if its empty
-                    filewrite([file '.json'], json)
-                end
-
-                % Skip if no data
-                if numel(json) <= 2
-                    fprintf('  %s - no data\n', day)
-                    continue
-                end
-
-                % Convert json to a table
-                t = obj.readDataFile(type, [file '.json']);
-
-                T = [T; t]; %#ok<AGROW>
-            end
-        end
+        % in progress
+        % function T = readData(obj, span, type)
+        %     % Read data - prices or usage
+        %     if nargin < 3, type = 'prices'; end
+        % 
+        %     % Initialise
+        %     T = {};
+        %     for day = checkdate(span(1)) : checkdate(span(end))
+        %         % Ignore time zones
+        %         day.TimeZone = ''; 
+        % 
+        %         % Choose identifier depending on type
+        %         switch type
+        %             case 'usage', t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
+        %             case 'prices', t = sprintf('%s_%s', type, obj.state);
+        %          end
+        % 
+        %         % File path
+        %         file = fullfile(obj.datafold, t, [char(day, 'yyyyMMdd') '.json']);
+        % 
+        %         % Skip if no data
+        %         if numel(file) <= 2
+        %             fprintf('  %s - no data\n', day);
+        %             continue
+        %         end
+        % 
+        %         % Convert json to table and store
+        %         T{end+1} = obj.readDataFile(type, file); %#ok<AGROW>
+        %     end
+        % 
+        %     % Combine all tables
+        %     if isempty(T)
+        %         T = table(); % return empty if nothing collected
+        %     else
+        %         T = vertcat(T{:});
+        %     end
+        % end
 
         function T = readDataFile(~, type, file)
             % Read prices or usage JSON data file and output a table
@@ -536,17 +496,4 @@ day = dateshift(day, 'start', 'day');
 if nargin>1
     day.TimeZone = default_timezone;
 end
-end
-
-function tf = isComplete(file)
-fid = fopen(file, 'r');
-fseek(fid, -100, 'eof'); % Read last 100 bytes in file
-txt = fread(fid, Inf, '*char')';
-tf = contains(txt, 'T23:55:00'); % File should end at start of next month
-fclose(fid);
-end
-
-function tf = isOld(file, thresh)
-fileDate = datetime(dir(file).date);
-tf = fileDate + thresh < datetime('now');
 end

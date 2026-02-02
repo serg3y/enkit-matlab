@@ -28,7 +28,8 @@ delrIcon = fullfile(guiFold, 'icons', 'deleterow.png');
     end
 
 units = ["kw" "kwh" "$" "c" "c/kwh" "custom"]; units = categorical(units, units);
-zones = ["+08:00" "+09:30" "+10:00" "+10:30" "+11:00" "Perth" "Adelaide" "Darwin" "Brisbane" "Sydney"]; zones = categorical(zones, zones);
+zones = ["+08:00" "+09:30" "+10:00" "+10:30" "+11:00" "Perth" "Adelaide" "Darwin" "Brisbane" "Sydney"];
+zones = categorical(zones);
 
 %% Figure
 W = 900; H = 460;
@@ -59,7 +60,8 @@ hStart = uieditfield(ht,      'Position', [W-160 H-260   120    30], 'Placeholde
 uibutton         (ht,         'Position', [W- 40 H-260    30    30], 'Text', '↦', 'FontSize', 16, 'ButtonPushedFcn', @(~,~)trimTime(hStart.Value,1), 'Tooltip', 'Keep only points after this time');
 hStop = uieditfield(ht,       'Position', [W-130 H-300   120    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton         (ht,         'Position', [W-160 H-300    30    30], 'Text', '↤', 'FontSize', 18, 'ButtonPushedFcn', @(~,~)trimTime(hStop.Value,0), 'Tooltip', 'Keep only points beofre this time');
-uibutton         (ht,         'Position', [W- 80    50    70    30], 'Text', 'Plot',               'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
+uibutton         (ht,         'Position', [W- 80 H-340    70    30], 'Text', 'Export',             'ButtonPushedFcn', @(~,~)export(hRoot),           'Tooltip', 'Plot data');
+uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Plot',               'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
     function newData(h)
         h.Value = fullfile(guiFold, 'data');
         updateData([])
@@ -335,7 +337,7 @@ uibutton         (ht,         'Position', [W- 80    50    70    30], 'Text', 'Pl
 
         % Update app title
         % gui.Name = sprintf('%g days, %g properties, %gm rez, %s to %s - EnKit', round(days(range(T.time))), width(T), minutes(rez), char(T.time(1),'yyyy-MM-dd'), char(dateshift(T.time(end),'end','day'), 'yyyy-MM-dd'));
-        % gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(T.time))), width(T) - 1);
+        gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(T.time))), width(T) - 1);
         drawnow
     end
     function appendData(t)
@@ -356,6 +358,13 @@ uibutton         (ht,         'Position', [W- 80    50    70    30], 'Text', 'Pl
         catch ex
             fprintf(2, '%s\n', ex.message)
         end
+    end
+    function export(h)
+        T = gui.UserData;
+        T(:, vartype('numeric')) = varfun(@(x)round(x, 6), T(:, vartype('numeric')));
+        file = [strrep(h.Value, '.mat', '') '.csv'];
+        writetable(T, file)
+        fprintf(' > %s\n', file)
     end
 
 %% Meter
@@ -380,7 +389,7 @@ uilabel         (ht,          'Position', [   10 H- 60 W- 40    30], 'Text', 'Im
 uibutton        (ht, 'push',  'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'meter', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
 uilabel         (ht,          'Position', [   10 H-100    40    30], 'Text', 'Input:');
 h = uieditfield (ht, 'text',  'Position', [   50 H-100 W-220    30], 'Value', fold, 'Placeholder', 'Select file or folder');
-uibutton        (ht, 'push',  'Position', [W-160 H-100    30    30], 'Icon', fileIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFile(h, '*.csv'), 'Tooltip', 'Select a file...');
+% uibutton        (ht, 'push',  'Position', [W-160 H-100    30    30], 'Icon', fileIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFile(h, '*.csv'), 'Tooltip', 'Select a file...');
 uibutton        (ht, 'push',  'Position', [W-120 H-100    30    30], 'Icon', foldIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFolder(h), 'Tooltip', 'Select a folder...');
 uibutton        (ht, 'push',  'Position', [W- 80 H-100    70    30], 'Text', 'Import',             'ButtonPushedFcn', @(~,~)importBatteryData(h), 'Tooltip', 'Read data');
 uilabel         (ht,          'Position', [   10 H-140    40    30], 'Text', 'Type:');
@@ -504,18 +513,20 @@ ht = uitab(tab, 'Title', 'Sim Solar');
 
 %% Tariffs
 ht = uitab(tab, 'Title', 'Tariffs');
-tariffList = unique(tariffs().tariff, 'stable');
 uilabel         (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Predict usage cost.', 'FontSize', 14);
 uibutton        (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'meter', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
 uilabel         (ht,         'Position', [   10 H-100    40    30], 'Text', 'Tariff:');
-h = uidropdown  (ht,         'Position', [   50 H-100   140    30], 'Items', tariffList, 'ValueChangedFcn', @(h,~)previewTariff(h,ht));
-uilabel         (ht,         'Position', [  210 H-100    40    30], 'Text', 'Import:');
-hImport = uidropdown(ht,     'Position', [  250 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
-uilabel         (ht,         'Position', [  410 H-100    40    30], 'Text', 'Export:');
-hExport = uidropdown(ht,     'Position', [  450 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
-uibutton        (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Caclulate', 'ButtonPushedFcn', @(~,~)calcTariffs(h), 'Tooltip', 'Read data');
-% hTrfPlt = uiaxes (ht,        'Position', [   30    30   660   290], 'XLim', [0 24], 'YLim', [0 65], 'XGrid', 'on', 'YGrid', 'on', 'NextPlot', 'add');
-% xlabel(hTrfPlt, 'Time of day (hours)'), ylabel(hTrfPlt, 'Price (c/kWh)')
+hTariffs = uidropdown  (ht,  'Position', [   50 H-100   150    30], 'Items', {}, 'ValueChangedFcn', @(h,~)previewTariff(h,ht));
+uibutton        (ht, 'push', 'Position', [  200 H-100    30    30], 'Icon', refrIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)refreshTariffList(), 'Tooltip', 'Refresh list of Tariffs');
+uilabel         (ht,         'Position', [  250 H-100    40    30], 'Text', 'Import:');
+hImport = uidropdown(ht,     'Position', [  290 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
+uilabel         (ht,         'Position', [  450 H-100    40    30], 'Text', 'Export:');
+hExport = uidropdown(ht,     'Position', [  490 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
+uibutton        (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Caclulate', 'ButtonPushedFcn', @(~,~)calcTariffs(), 'Tooltip', 'Read data');
+refreshTariffList()
+    function refreshTariffList()
+        hTariffs.Items = unique(tariffs().tariff, 'stable');
+    end
     function previewTariff(h, ht)
         delete(findobj(ht, 'Tag', 'previewTariff'))
         dayList = tariffs(h.Value).date';
@@ -538,14 +549,13 @@ uibutton        (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Cac
             title(ax, string(dayList(k)))
         end
     end
-    function calcTariffs(h)
+    function calcTariffs()
         T = gui.UserData;
         if ~isempty(T)
             time = T.time;
             step = hours(mode(diff(time)));
 
-            [buy_ckwh, sell_ckwh, supply_c] = tariffs(h.Value, T.time, 'amber'); 'HACK!' %HACK
-            % [buy_ckwh, sell_ckwh, supply_c] = tariffs(h.Value, T.time);
+            [buy_ckwh, sell_ckwh, supply_c] = tariffs(hTariffs.Value, T.time);
 
             buy_cost_c = buy_ckwh.*T.(hImport.Value)*step;
             sell_cost_c = -sell_ckwh.*T.(hExport.Value)*step;
@@ -568,14 +578,14 @@ h = uidropdown   (ht,         'Position', [   50 H-140   100    30], 'Value', 'S
 uilabel          (ht,         'Position', [  290 H-140    80    30], 'Text', 'Date range:');
 t1 = uieditfield (ht,         'Position', [  360 H-140   120    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
 t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
-uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
-uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
+uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAmberData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
+uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
     function importAmberData(state, span)
         T = aemo().read(state, span);
         appendData(T);
     end
     function downloadAmberData(state, span)
-        aemo().download(state, span, hours(12))
+        amber().getPrices({'2024-11-01' 0}, 5);
     end
 
 %% Helper Functions

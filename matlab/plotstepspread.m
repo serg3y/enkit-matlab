@@ -2,6 +2,9 @@ function h = plotstepspread(ax, x, y1, y2, color, name, mode, varargin)
 % Plots a region defined by x,y1,y2.
 %  plotdpread2(ax, x, y1, y2, color, name, mode, varargin)
 
+% Note: when doing sum its often best to cause the sum to be nan if any
+% points are nan. When doing mean its often best to ignore nans.
+
 % Defaults
 if nargin < 4 || isempty(y2), y2 = y1*0; end
 if nargin < 5 || isempty(color)

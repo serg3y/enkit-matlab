@@ -4,7 +4,13 @@ function h = plotsteps(ax, x, y, color, name, fillval, mode, varargin)
 
 % Defaults
 arguments
-    ax, x, y, color = [], name char = '', fillval = [], mode char = 'xy'
+    ax
+    x
+    y
+    color = []
+    name char = ''
+    fillval = []
+    mode char = 'xy'
 end
 arguments (Repeating)
     varargin

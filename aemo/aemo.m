@@ -42,19 +42,17 @@ classdef aemo
             %   download(state, span, staleLim)
             if nargin<4 || isempty(staleLim), staleLim = hours(12); end
 
-            fprintf(' Downloading AEMO wholesale price and state usage data...\n')
             monthList = unique(dateshift(checkdate(span(1)) : checkdate(span(end)), 'start', 'month'));
             for month = monthList
                 [file, url] = obj.monthFile(state, month);
-                fprintf('  %s > %s', url, file)
 
                 % Skip if the file exists and is complete or not stale
                 if isfile(file) && (complete(file) || ~stale(file, staleLim))
-                    fprintf('  (skiped, %g b)\n', dir(file).bytes)
                     continue
                 end
 
                 % Download
+                fprintf('  %s > %s', url, file)
                 folder = fileparts(file);
                 if ~isfolder(folder)
                     mkdir(folder)
@@ -66,7 +64,7 @@ classdef aemo
 
         function T = read(obj, state, span)
             % Read data
-            fprintf(' Reading AEMO wholesale price and state usage data...\n')
+            fprintf(' Reading AEMO data...\n')
             monthList = unique(dateshift(checkdate(span(1), '+10:00') : checkdate(span(end), '+10:00'), 'start', 'month'));
             T = cell(numel(monthList), 1); % Preallocate
             for k = 1:numel(monthList)
