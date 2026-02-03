@@ -1,0 +1,24 @@
+ChatGPT description of Amber and wholesale prices:
+https://chatgpt.com/share/6981c55f-1524-8002-bd73-ede1d662f64a
+
+This is my referral code, with this link both they and I get $120 each, ($10 per month over 12 months).
+https://mates.amber.com.au/G8TMBTCE  ($120 referral)
+
+Amber's SmartShift counts as "Virtual Power Plant" (VPP), and by using SmartShift, even temporarily, anyone can claim a big government rebate, of up to $1.7k. This can be done after signing up.
+https://help.amber.com.au/hc/en-us/articles/23408555825165-Cash-rebate-for-South-Australian-SmartShift-customers-SA-REPS
+
+SmartShift is not perfect but I leave it on 99% of time. In rare occasions where I think I can do better I send manual commands to my battery, which i can do through the Amber app.
+
+If interested I can provide plots of historic Amber prices. Both actual 5 minute data that showing spikes etc and averages. I can also predict historic Amber bills if I can access smart meter data. I can provide instructions for how to download it.
+
+One caveat, IF you have a large solar array AND a small battery AND this array is not DC coupled to the battery OR or the array has an old inverter that cannot be controlled remotely by Amber. Then Amber will not be able to stop the array from exporting when wholesale prices are negative. This is true for our house. We get charged, but its only about $10 per year. It could be worse if but we minimise how much we export during such times by using more electricity during the day. Most modern inverters and batteries support 'curtailment' where amber can stop production once the battery is full and prices are negative.
+
+More links:
+  https://help.amber.com.au/hc/en-us/articles/23408555825165-Cash-rebate-for-South-Australian-SmartShift-customers-SA-REPS  (VPP rebate)
+  https://www.youtube.com/watch?v=yOCfJ4T_oxQ (focuses on limitations)
+  https://www.youtube.com/watch?v=GTk_XUqvAOE (app description)
+  https://www.youtube.com/watch?v=SN0xQEamVck  (amber app)
+  https://www.youtube.com/watch?v=yL3jbCSJHzE  (long podcast)
+  https://www.youtube.com/watch?v=thzrdBzJF4M
+
+https://mates.amber.com.au/G8TMBTCE  ($120 referral)

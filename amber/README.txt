@@ -26,14 +26,12 @@ Links:
   https://www.sapowernetworks.com.au/your-power/billing/pricing-tariffs/
   https://www.sapowernetworks.com.au/your-power/billing/pricing-tariffs/electricity-tariffs/
   https://www.sapowernetworks.com.au/public/download.jsp?id=9508
-
-
-
-Reviews:
-  https://www.youtube.com/watch?v=yOCfJ4T_oxQ (focuses on limitations)
-  https://www.youtube.com/watch?v=GTk_XUqvAOE (app description)
   
-Info:
+  https://help.amber.com.au/hc/en-us/articles/23408555825165-Cash-rebate-for-South-Australian-SmartShift-customers-SA-REPS (VPP rebate)
+  https://www.youtube.com/watch?v=yOCfJ4T_oxQ  (focuses on limitations)
+  https://www.youtube.com/watch?v=GTk_XUqvAOE  (app description)
   https://www.youtube.com/watch?v=SN0xQEamVck  (amber app)
   https://www.youtube.com/watch?v=yL3jbCSJHzE  (long podcast)
   https://www.youtube.com/watch?v=thzrdBzJF4M
+
+  https://mates.amber.com.au/G8TMBTCE  ($120 referral code)
