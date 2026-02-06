@@ -1,11 +1,11 @@
 function [tod, date, dst] = timeofdaylocal(dt, timezone)
-% Returns time of day usign local time, accounting for day light savings.
+% Returns time of day using local time, accounting for day light savings.
 %   [tod, date, dst] = timeofdaylocal(dt)
 %   [tod, date, dst] = timeofdaylocal(dt, timezone)
 % 
 % Remarks:
-% - Normal timeofday() returns elpased time since start of day.
-% - If timezone is specifeid then t is converted to that timezone first.
+% - Normal timeofday() returns elapsed time since start of day.
+% - If timezone is specified then dt is converted to that timezone first.
 %
 % Example:
 %   dt = datetime('2025-04-06 01:00', 'TimeZone', 'Australia/Adelaide') + hours(0:0.5:3)';
@@ -32,6 +32,6 @@ dt.TimeZone = '';
 % Re-apply timezone
 date.TimeZone = timezone;
 
-% Adjsut format also
+% Adjust format also
 tod.Format = 'hh:mm';
 end

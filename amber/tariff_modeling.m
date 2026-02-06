@@ -8,10 +8,10 @@
 
 % Period
 span = {'2025-05-10' '2025-05-20'}; % 2024
-span = {'2025-07-10' '2025-07-20'}; % 2025
+% span = {'2025-07-10' '2025-07-20'}; % 2025
 
 % Load
-T1 = aemo().getPrice('sa', span, 'rrp'); 
+T1 = aemo().getPrice('sa', span); 
 T2 = amber().getPrices(span);
 T = innerjoin(T1, T2); % Join
 
@@ -19,12 +19,12 @@ T = innerjoin(T1, T2); % Join
 T.tod = timeofdaylocal(T.time, 'Australia/Adelaide');
 
 %% 2. Fit
-[T.i1, ~, ~, buy] = ransacLines(T.rrp, T.buy_price, 3, 0.1, 50);
-[T.i2, ~, ~, sell] = ransacLines(T.rrp, T.sell_price, 3, 0.1, 50);
+[T.i1, ~, ~, buy] = ransacLines(T.SA_price_ckwh, T.buy_price, 3, 0.1, 50);
+[T.i2, ~, ~, sell] = ransacLines(T.SA_price_ckwh, T.sell_price, 3, 0.1, 50);
 
-clf, figmode(1, 'dark', 'handy')
-subplot(221), grid on, gscatter(T.rrp, T.buy_price, T.i1), legend(buy), title 'Buy'
-subplot(222), grid on, gscatter(T.rrp, T.sell_price, T.i2), legend(sell), title 'Sell'
+clf, figmode(1, 'dark')
+subplot(221), grid on, gscatter(T.SA_price_ckwh, T.buy_price, T.i1), legend(buy), title 'Buy'
+subplot(222), grid on, gscatter(T.SA_price_ckwh, T.sell_price, T.i2), legend(sell), title 'Sell'
 subplot(223), grid on, gscatter(T.tod, T.i1, T.i1), xlabel Time
 subplot(224), grid on, gscatter(T.tod, T.i2, T.i2), xlabel Time
 
@@ -61,6 +61,12 @@ sell_tod = [0 hours(t.tod(find(diff(t.i2)) + 1))']
 %   "2025-07-01"  "amber_rtou_buy"   "Australia/Adelaide"  [0     6 10 16]'  [         14.68214 25.11014  9.47914 25.11014]'  1.1876641
 %   "2025-07-01"  "amber_rtou_sell"  "Australia/Adelaide"  [0       10 16]'  [ 0                         -1        0      ]'  1.0796946
 
-%% 4. Check model (rms should be close to zero)
-rms(tariffs('amber_rtou_buy',  T.time, T.rrp) - T.buy_price)  % buy error (cents)
-rms(tariffs('amber_rtou_sell', T.time, T.rrp) - T.sell_price) % sell error (cents)
+%% 4. Check model
+[modlled_buy, modelled_sell] = tariffs('Amber RTOU+sa', T.time);
+
+err_buy = modlled_buy - T.buy_price; % buy error (cents)
+err_sell = modelled_sell + T.sell_price; % sell error (cents)
+
+figure(2)
+subplot(211), plot(err_buy), title(rms(err_buy)) % rms should be close to zero
+subplot(212), plot(err_sell), title(rms(err_sell))

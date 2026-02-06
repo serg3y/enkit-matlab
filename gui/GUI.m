@@ -400,7 +400,7 @@ t2 = uieditfield(ht,          'Position', [  490 H-140   120    30], 'Placeholde
 uicheckbox      (ht,          'Position', [W-150 H-140   120    30], 'Value', 0, 'Text', 'Intersection only');
     function importBatteryData(h)
         try
-            T = powerwall2().read(h.Value, {t1.Value t2.Value});
+            T = powerwall2().read({t1.Value t2.Value});
             appendData(T)
         catch ex
             fprintf(2, 'Error: %s\n', ex.message);
@@ -573,19 +573,17 @@ uibutton         (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', hel
 uilabel          (ht,         'Position', [   10 H-100    70    30], 'Text', 'Input:', 'Tooltip', 'Enter a custom system ID and click Download');
 h = uieditfield  (ht, 'text', 'Position', [   50 H-100 W-220    30], 'Value', fold, 'Placeholder', 'Select file or folder');
 uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', foldIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFolder(h), 'Tooltip', 'Select a folder...');
-uilabel          (ht,         'Position', [   10 H-140    40    30], 'Text', 'State:');
-h = uidropdown   (ht,         'Position', [   50 H-140   100    30], 'Value', 'SA', 'Items', ["NSW" "QLD" "VIC" "SA" "TAS"]);
 uilabel          (ht,         'Position', [  290 H-140    80    30], 'Text', 'Date range:');
 t1 = uieditfield (ht,         'Position', [  360 H-140   120    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
 t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
-uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAmberData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
-uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
-    function importAmberData(state, span)
-        T = aemo().read(state, span);
+uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAmberData({t1.Value, t2.Value}), 'Tooltip', 'Read data');
+uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData({t1.Value, t2.Value}), 'Tooltip', 'Download historic price data');
+    function importAmberData(span)
+        T = amber().getPrices(span);
         appendData(T);
     end
-    function downloadAmberData(state, span)
-        amber().getPrices({'2024-11-01' 0}, 5);
+    function downloadAmberData(span)
+        amber().getPrices(span);
     end
 
 %% Helper Functions
