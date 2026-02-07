@@ -103,7 +103,7 @@ ax2 = axes('Position', posTop);
 ylabel(ax2, units(2), 'HandleVisibility', 'off')
 set(ax2.XAxis, 'TickLength', [0.004 0])
 set(ax2.YAxis, 'TickLength', [0.004 0])
-title(ax2, ttl, 'FontSize', 12, 'HandleVisibility', 'off')
+hTitle = title(ax2, ttl, 'FontSize', 12, 'HandleVisibility', 'off', 'BackgroundColor', [0.1 0.1 0.1]);
 
 % Initialise right plot
 ax3 = axes('Position', posRght, 'YDir', 'reverse');
@@ -127,6 +127,7 @@ setappdata(ax, 'LastYLim', missing);
 
 % Display side-plots
 updateSidePlots()
+hTitle.Position = hTitle.Position - [0 70 0];
 
 % Use timer to avoid calling updateplot too often
 delayTimer = timer('StartDelay', 0.05, 'TimerFcn', @(~,~)updateSidePlots());

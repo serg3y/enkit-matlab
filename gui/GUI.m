@@ -260,7 +260,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
             end
             [file, path] = uiputfile({'*.png'; '*.jpg'}, 'Save as', defaultPath);
             if isequal(file, 0), return, end
-            figsave(fig, fullfile(path, file), [1600 900])
+            figsave(fig, fullfile(path, file), [1920 1080])
         end
 
         T = gui.UserData;
