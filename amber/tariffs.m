@@ -56,13 +56,12 @@ data = {
     % https://www.aemo.com.au/-/media/files/electricity/nem/security_and_reliability/loss_factors_and_regional_boundaries/2025-26-marginal-loss-factors/distribution-loss-factors-for-the-2025-26.pdf - Table24 pg26 - SA 2024,2025 DLF: 1.1161, 1.0811
     "2024-07-01" "SAPN RTOU"        nan     [ 1  6 10 15] [7.56     18.79     3.81    18.79   ] [0      ] [0      ] inf 1.1161    1/1.1161 '' % https://www.sapowernetworks.com.au/public/download.jsp?id=328119 - Table1 pg4  - 2024 NUoS RTOU: [18.79 7.56 3.81]
     "2025-07-01" "SAPN RTOU"        nan     [ 0  6 10 16] [9.47     18.95     4.74    18.95   ] [0 10 16] [0  1  0] inf 1.0811    1/1.0811 '' % https://www.sapowernetworks.com.au/public/download.jsp?id=333252 - Table9 pg37 - 2025 NUoS RTOU: [18.95 9.47 4.74]
-    "2024-07-01" "Amber RTOU"       181.247 [ 1  6 10 15] [13.21122 25.56422  9.08622 25.56422] [0      ] [0      ] inf 1.221571  1.110520 '' % supply = (65.77 + 99.00) * 1.1 = 181.2470
-    "2025-07-01" "Amber RTOU"       190.685 [ 0  6 10 16] [14.68214 25.11014  9.47914 25.11014] [0 10 16] [0  1  0] inf 1.187664  1.079695 '' % supply = (74.16 + 99.19) * 1.1 = 190.6850
-
-    "2024-07-01" "Amber RTOU+sa"    199.372 [ 1  6 10 15] [14.53234 28.12064  9.99484 28.12064] [0      ] [0      ] inf 1.3437281 1.221572 'sa' % inc GST
-    "2025-07-01" "Amber RTOU+sa"    191.29  [ 0  6 10 16] [16.15035 27.62115 10.42705 27.62115] [0 10 16] [0 1.1 0] inf 1.3064304 1.187665 'sa' 
-    "2024-07-01" "Amber RTOU+amber" 181.24  [0          ] [0                                  ] [0      ] [0      ] inf 1.1       1.1      'amber' % inc GST
-    "2025-07-01" "Amber RTOU+amber" 191.29  [0          ] [0                                  ] [0      ] [0      ] inf 1.1       1.1      'amber'
+    "2024-07-01" "Amber RTOU"       181.247 [ 1  6 10 15] [13.21124 25.56425  9.08621 25.56425] [0      ] [0      ] inf 1.221573  1.110520 '' % supply = (65.77 + 99.00) * 1.1 = 181.2470
+    "2025-07-01" "Amber RTOU"       190.685 [ 0  6 10 16] [14.68214 25.11015  9.47914 25.11015] [0 10 16] [0  1  0] inf 1.187664  1.079695 '' % supply = (74.16 + 99.19) * 1.1 = 190.6850
+    "2024-07-01" "Amber RTOU+sa"    181.247 [ 1  6 10 15] [13.21124 25.56425  9.08621 25.56425] [0      ] [0      ] inf 1.221573  1.110520 'sa' % inc GST
+    "2025-07-01" "Amber RTOU+sa"    190.685 [ 0  6 10 16] [14.68214 25.11015  9.47914 25.11015] [0 10 16] [0  1  0] inf 1.187664  1.079695 'sa' % inc GST 
+    "2024-07-01" "Amber RTOU+amber" 181.24  [ 0         ] [0                                  ] [0      ] [0      ] inf 1.1       1.1      'amber' % inc GST
+    "2025-07-01" "Amber RTOU+amber" 191.29  [ 0         ] [0                                  ] [0      ] [0      ] inf 1.1       1.1      'amber'
     
     "2024-07-01" "Amber RELEW"      nan     [10 16 17 21] [ 8.20622 15.65322 41.29422 15.65322] [0      ] [nan    ] inf 1.1105195 nan      ''    
     "2024-07-01" "test JA"          111.518 [ 0         ] [45.034                             ] [0      ] [ -4.737] inf 0         0        ''    % 8c first 10kWh, then 2c, avg export is 21.6 kWh

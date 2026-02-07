@@ -8,7 +8,7 @@ function t = checkdate(t, tz, roundto)
 if nargin<2, tz = ''; end
 if nargin<3, roundto = ''; end
 
-% Batch
+% Batch mode
 if iscell(t)
     t = cellfun(@(x)checkdate(x, tz, roundto), t);
     return
