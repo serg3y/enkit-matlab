@@ -4,9 +4,12 @@
 % amber().getSites
 % amber().download({'2026-01-01' 0})
 
+
 % T = amber().getPrices({'2024-11-01' '2024-12-01'})
 % T = amber().getUsage({'2025-06-01' '2026-06-01'})
 % amber().downloadForecastPeriodicaly
+
+% amber('amber_luda.ini').getSites
 
 % Remarks:
 % "usage" is not available for current data and possibly last day
@@ -15,15 +18,15 @@
 % Links
 % SA Power dashboard: https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard
 
-classdef amber
+classdef amber < handle
 
     properties
-        datafold = fullfile(fileparts(mfilename('fullpath')), 'data')
+        datafold
         token
-        siteId
+        id
         state
         nmi
-        startDate
+        activeFrom
     end
 
     methods
@@ -31,10 +34,17 @@ classdef amber
         function obj = amber(varargin)
             % Class constructor
 
+            % Set output folder
+            if isempty(obj.datafold)
+                obj.datafold = fullfile(fileparts(mfilename('fullpath')), 'data');
+            elseif fileparts(obj.datafold) == obj.datafold
+                obj.datafold = fullfile(fileparts(mfilename('fullpath')), obj.datafold);
+            end
+
             % Select ini file
             if nargin==1
                 ini = varargin{1};
-                varargin{1} = [];
+                varargin(1) = [];
             else
                 ini = fullfile(fileparts(mfilename('fullpath')), 'amber.ini');
             end
@@ -55,14 +65,13 @@ classdef amber
                 obj.(varargin{k}) = varargin{k + 1};
             end
 
-            % Download siteId, if needed
-            if isempty(obj.siteId)
+            % Download site id, if needed
+            if isempty(obj.id)
                 site = obj.getSites;
                 disp(site)
                 disp(site.channels)
-                obj.siteId = site.id;
-                fprintf(2, 'To skip this step assign "siteId" property in "amber.ini" file to the "id" value above.\n')
-                pause(1)
+                obj.id = site.id;
+                fprintf('To skip this step in the future assign "id" property in "amber.ini" file to the "id" value above.\n')
             end
         end
 
@@ -78,85 +87,25 @@ classdef amber
                 t.Properties.VariableNames = fieldnames(data.channels);
                 data.channels = t;
             end
-        end
 
-        function T = getUsage(obj, span)
-            T = downloadData(obj, 'usage', span, 5);
+            obj.id = site.id;
+
+            disp(site)
+            disp(site.channels)
         end
 
         function T = getPrices(obj, span)
-            T = downloadData(obj, 'prices', span, 5);
+            obj.download(span, 'prices');
+            T = obj.read(span, 'prices');
         end
 
-        function T = downloadData(obj, type, span)
-            % Download prices or usage data
-
-            % Initialise
-            T = {};
-            for day = checkdate(span(1)) : checkdate(span(end))
-                % Ignore time zones
-                day.TimeZone = '';
-
-                % Skip if day is before startDate
-                if ~isempty(obj.startDate) && day < datetime(obj.startDate)
-                    continue
-                end
-
-                % Choose identifier depending on type
-                switch type
-                    case 'usage', t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
-                    case 'prices', t = sprintf('%s_%s', type, obj.state);
-                end
-
-                % File path
-                file = fullfile(obj.datafold, t, [char(day, 'yyyyMMdd') '.json']);
-                if ~isfolder(fileparts(file))
-                    mkdir(fileparts(file));
-                end
-
-                % Delete file if its stale
-                if isfile(file)
-                    info = dir(file);
-                    t = datetime(info.date);
-                    if t < day + days(1) + hours(1) && t + minutes(30) < datetime('now') % check if stale
-                        delete(file);
-                    end
-                end
-
-                % Download file if required
-                if ~isfile(file)
-                    url_span = sprintf('startDate=%s&endDate=%s', char(day, 'yyyy-MM-dd'), char(day, 'yyyy-MM-dd'));
-                    url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span];
-                    [err, data] = obj.geturl(url);
-
-                    if err
-                        fprintf(2, 'Warning: %s\n', data);
-                        continue
-                    end
-
-                    filewrite(file, data);
-                end
-
-                % Skip if no data
-                if numel(file) <= 2
-                    fprintf('  %s - no data\n', day);
-                    continue
-                end
-
-                % Convert json to table and store
-                T{end+1} = readDataFile(file, type); %#ok<AGROW>
-            end
-
-            % Combine all tables
-            if isempty(T)
-                T = table(); % return empty if nothing collected
-            else
-                T = vertcat(T{:});
-            end
+        function T = getUsage(obj, span)
+            obj.download(span, 'usage');
+            T = obj.read(span, 'usage');
         end
 
         function download(obj, span, type)
-            % Download prices or usage data
+            % Download prices (or usage) data
             if nargin < 3 || isempty(type), type = 'prices'; end
 
             % Initialise
@@ -164,8 +113,8 @@ classdef amber
 
             % Step through days
             for k = 1:numel(dayvec)                
-                % Skip if day is before startDate
-                if ~isempty(obj.startDate) && dayvec(k) < datetime(obj.startDate)
+                % Skip if day is before activeFrom date
+                if ~isempty(obj.activeFrom) && dayvec(k) < datetime(obj.activeFrom)
                     continue
                 end
 
@@ -179,7 +128,7 @@ classdef amber
                     mkdir(fileparts(file));
                 end
 
-                % Delete file if its stale
+                % Delete file, if its stale
                 if isfile(file)
                     info = dir(file);
                     t = datetime(info.date);
@@ -191,22 +140,16 @@ classdef amber
                 % Download file, if required
                 if ~isfile(file)
                     url_span = sprintf('startDate=%s&endDate=%s', char(dayvec(k), 'yyyy-MM-dd'), char(dayvec(k), 'yyyy-MM-dd'));
-                    url = ['https://api.amber.com.au/v1/sites/' obj.siteId '/' type '?' url_span];
+                    url = ['https://api.amber.com.au/v1/sites/' obj.id '/' type '?' url_span];
                     [err, data] = obj.geturl(url);
-
-                    if err
-                        fprintf(2, 'Warning: %s\n', data); 
-                        continue
-                    end
-
-                    % Save data to file
-                    filewrite(file, data);
+                    assert(~err, '%s', json) % Abort if error
+                    filewrite(file, data); % Save to file
                 end
             end
         end
 
         function T = read(obj, span, type)
-            % Read prices or usage data
+            % Read prices (or usage) data
             if nargin < 3 || isempty(type), type = 'prices'; end
 
             % Initialise
@@ -267,14 +210,14 @@ classdef amber
                 mkdir(fold);
             end
             start_time = datetime('now', 'TimeZone', 'local'); % Download start time (local)
-            [err, json] = obj.geturl(sprintf('https://api.amber.com.au/v1/sites/%s/prices/current?previous=%g&next=%g&resolution=%g', obj.siteId, span, rez)); % Download
+            [err, json] = obj.geturl(sprintf('https://api.amber.com.au/v1/sites/%s/prices/current?previous=%g&next=%g&resolution=%g', obj.id, span, rez)); % Download
+            if err
+                fprintf(2, 'Error: %s\n', json) % Print errors to screen
+            end
             d = jsondecode(json);
             start_time.TimeZone = d{1}.nemTime(end-5:end); % Switch to nem time zone
             file = fullfile(fold, [char(start_time, 'yyyyMMdd_HHmmss') '.json']);
             filewrite(file, json)
-            if err
-                fprintf(2, 'Error: %s\n', json) % Print errors to screen
-            end
         end
 
         function T = readForecastData(obj, span, rez, forecast_limit)
@@ -378,7 +321,7 @@ classdef amber
 end
 
 function T = readDataFile(file, type)
-% Read a prices or usage JSON data file and output a table.
+% Read prices (or usage) data from a single file.
 
 % Defaults
 if nargin<2 || isempty(type), type = 'prices'; end
