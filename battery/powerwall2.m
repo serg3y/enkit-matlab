@@ -115,7 +115,7 @@ classdef powerwall2 < handle
 
         function download(obj, span, siteId)
             % Download and cache daily data files
-            dayVec = resolveSpan(span, obj.timeZone);
+            dayVec = checkdate(span(1), obj.timeZone, 'day') : checkdate(span(end), obj.timeZone, 'day');
             if nargin<3 || isempty(siteId)
                 if isempty(obj.siteIds)
                     obj.authenticate();
@@ -187,7 +187,7 @@ classdef powerwall2 < handle
             if nargin < 4 || isempty(timezone)
                 timezone = obj.timeZone; % use system timezone by default
             end
-            days = resolveSpan(span, obj.timeZone);
+            days = checkdate(span(1), obj.timeZone, 'day') : checkdate(span(end), obj.timeZone, 'day');
             C = cell(numel(days), 1);
 
             % Read
@@ -223,41 +223,4 @@ classdef powerwall2 < handle
             T = [T E];
         end
     end
-end
-
-function days = resolveSpan(span, timeZone)
-% Resolve user span input into a vector of whole-day datetimes
-if nargin < 2 || isempty(span)
-    days = [];
-    return
-end
-if ~iscell(span)
-    span = {span span};
-end
-d0 = parseDay(span{1}, timeZone);
-if isscalar(span) || isempty(span{2})
-    d1 = d0;
-elseif isnumeric(span{2}) && span{2} < 0
-    d1 = datetime('today', 'TimeZone', timeZone) + span{2};
-else
-    d1 = parseDay(span{2}, timeZone);
-end
-days = dateshift(d0, 'start', 'day') : dateshift(d1, 'start', 'day');
-end
-
-function d = parseDay(x, timeZone)
-% Convert various date inputs to a start-of-day datetime
-if isnumeric(x) && x < 1000
-    d = datetime('today') + x;
-elseif isnumeric(x)
-    d = datetime(x, 'ConvertFrom', 'datenum');
-elseif isdatetime(x)
-    d = x;
-else
-    d = datetime(x);
-end
-d = dateshift(d, 'start', 'day');
-if nargin > 1
-    d.TimeZone = timeZone;
-end
 end

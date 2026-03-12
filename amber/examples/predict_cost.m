@@ -110,7 +110,7 @@ for k = 1:numel(labels)
     pos = [0 1-1/n*k 1 1/n]; % L B W H
 
     % Plot
-    ax = heatmapTimeVsDatePlus(T, 'time', prop, col, labels(k), units, pos);
+    ax = heatmapTimeVsDatePlus(T, prop, col, labels(k), units, pos);
 end
 
 linkallaxes

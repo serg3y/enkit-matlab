@@ -168,11 +168,11 @@ end
 % Wholesale tariffs
 switch lower(T.rrp_source{1})
     case {'nsw' 'qld' 'sa' 'tas' 'vic'} % AMEO
-        T2 = aemo().getPrice(T.rrp_source{1}, [min(time) max(time) + seconds(1)]);
+        T2 = aemo().getPrice(T.rrp_source{1}, [min(time) max(time) + minutes(5)]);
         [~, ind] = ismember(time, T2.time);
         rrp = nan(n, 1);
         valid = ind > 0;
-        rrp(valid) = T2{ind(valid),2};
+        rrp(valid) = T2.price_ckwh(ind(valid));
         buy_price(tariff_ind>0) = buy_price(tariff_ind>0) + rrp(tariff_ind>0) .* T.rrp_buy(tariff_ind(tariff_ind>0));
         sell_price(tariff_ind>0) = sell_price(tariff_ind>0) - rrp(tariff_ind>0) .* T.rrp_sell(tariff_ind(tariff_ind>0));
     case 'amber'

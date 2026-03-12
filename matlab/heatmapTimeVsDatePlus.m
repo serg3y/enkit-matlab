@@ -1,7 +1,7 @@
-function ax = heatmapTimeVsDatePlus(T, tvar, vvar, col, ttl, units, pos, f1, f2)
-% Display time series data as a heatmap, plus sumary plots using a panel.
-%   heatmapTimeVsDatePlus(T, tvar, vvar)
-%   heatmapTimeVsDatePlus(T, tvar, vvar, col, ttl, units, pos, f1, f2)
+function ax = heatmapTimeVsDatePlus(T, var, col, ttl, units, pos, f1, f2)
+% Display time series data as a heatmap with sumary plots.
+%   heatmapTimeVsDatePlus(T, var)
+%   heatmapTimeVsDatePlus(T, var, col, ttl, units, pos, f1, f2)
 %   ax = heatmapTimeVsDatePlus(__)
 %
 % Output:
@@ -11,14 +11,13 @@ function ax = heatmapTimeVsDatePlus(T, tvar, vvar, col, ttl, units, pos, f1, f2)
 %   time = (datetime('2020-01-01'):minutes(5):datetime('2020-07-01 23:55'))';
 %   val = randn(size(time));
 %   T = table(time, val);
-%   clf, heatmapTimeVsDatePlus(T,'time','val')
+%   clf, heatmapTimeVsDatePlus(T, 'val')
 %
 % See also: heatmapTimeVsDate
 
 arguments
-    T table
-    tvar (1,1) string = "time"
-    vvar (1,1) string = "Var1"
+    T
+    var (1,1) string = "Var1"
     col double = [1 0 0; 0 1 0] % positive red, negative green
     ttl string = ""
     units string = ""
@@ -28,10 +27,13 @@ arguments
 end
 
 % Check
+if istable(T)
+    T = table2timetable(T, 'RowTimes', 'time');
+end
 if isrow(col)
     col = [col; col];
 end
-timestep = mode(diff(T.(tvar))); % Infer time step, assume its regular
+timestep = mode(diff(T.time)); % Infer time step, assume its regular
 if isscalar(units)
     if strcmpi(units, 'kw')
         %units = ["kW" "kWh"]; f1 = @(x)sum(x * hours(timestep), 1, 'omitmissing'); % Convert kW to kWh
@@ -43,13 +45,13 @@ if isscalar(units)
         units = [units units];
     end
 end
-if isdatetime(T.(vvar))
-    T.missing = isnat(T.(vvar));
-    vvar = "missing";
+if isdatetime(T.(var))
+    T.missing = isnat(T.(var));
+    var = "missing";
 end
 
 % Compute TOD + Date
-[T.tod, T.date] = timeofday(T.(tvar));
+[T.tod, T.date] = timeofday(T.time);
 
 % Main plot dimensions
 L = 0.08; % left
@@ -74,15 +76,15 @@ posCrnr = adjust(posCrnr);
 
 % Main plot
 ax = axes('Position', posMain, 'YDir', 'reverse');
-plotheatmap(T.date, T.tod, T.(vvar))
-if all(T.(vvar) >= 0)
-    clim(ax, [0 max(T.(vvar))+eps])
+plotheatmap(T.date, T.tod, T.(var))
+if all(T.(var) >= 0)
+    clim(ax, [0 max(T.(var))+eps])
     cmap = makeCmap(col(1,:));
-elseif all(T.(vvar) <= 0)
-    clim(ax, [min(T.(vvar)) 0])
+elseif all(T.(var) <= 0)
+    clim(ax, [min(T.(var)) 0])
     cmap = flipud(makeCmap(col(2,:)));
 else
-    clim(ax, max(abs(T.(vvar))) .* [-1 1])
+    clim(ax, max(abs(T.(var))) .* [-1 1])
     cmap = makeCmap(col);
 end
 colormap(ax, cmap);
@@ -169,9 +171,9 @@ linkaxes([ax ax3], 'y')
 
             % Top plot
             if numel(unique(T.date(j))) >= 2
-                hLine = plotLine(ax2, Ti, 'date', vvar, f1, units(2), 'xy');
-                plotArea(ax2, Ti, 'date', vvar, @(x)f1(max(x, 0, 'includemissing')), col(1, :), 'xy') % Positive values
-                plotArea(ax2, Ti, 'date', vvar, @(x)f1(min(x, 0, 'includemissing')), col(2, :), 'xy') % Negative values
+                hLine = plotLine(ax2, Ti, 'date', var, f1, units(2), 'xy');
+                plotArea(ax2, Ti, 'date', var, @(x)f1(max(x, 0, 'includemissing')), col(1, :), 'xy') % Positive values
+                plotArea(ax2, Ti, 'date', var, @(x)f1(min(x, 0, 'includemissing')), col(2, :), 'xy') % Negative values
                 legend(ax2, hLine, 'Location', 'NE', 'FontSize', 12, 'EdgeColor', [.4 .4 .4], 'BackgroundAlpha', 0.5)
                 set(ax2.XAxis, 'FontSize', 0.1)
                 xlim(ax2, XLim)
@@ -179,9 +181,9 @@ linkaxes([ax ax3], 'y')
 
             % Right plot
             if numel(unique(T.tod(i))) >= 2
-                hLine = plotLine(ax3, Ti, 'tod', vvar, f2 , units(1), 'yx');
-                plotArea(ax3, Ti, 'tod', vvar, @(x)f2(max(x, 0, 'includemissing')), col(1, :), 'yx')
-                plotArea(ax3, Ti, 'tod', vvar, @(x)f2(min(x, 0, 'includemissing')), col(2, :), 'yx')
+                hLine = plotLine(ax3, Ti, 'tod', var, f2 , units(1), 'yx');
+                plotArea(ax3, Ti, 'tod', var, @(x)f2(max(x, 0, 'includemissing')), col(1, :), 'yx')
+                plotArea(ax3, Ti, 'tod', var, @(x)f2(min(x, 0, 'includemissing')), col(2, :), 'yx')
                 legend(ax3, hLine, 'Location', 'NE', 'FontSize', 12, 'EdgeColor', [.4 .4 .4], 'BackgroundAlpha', 0.5)
                 set(ax3.YAxis, 'FontSize', 0.1)
                 ax3.YAxis.TickLabelFormat = ax.YAxis.TickLabelFormat;
@@ -190,7 +192,7 @@ linkaxes([ax ax3], 'y')
 
             % Histogram
             if 1
-                x = Ti.(vvar);
+                x = Ti.(var);
                 [~, edges] = histcounts(x, 'BinMethod', 'auto');
                 idx = discretize(x,edges);
                 y = accumarray(idx(~isnan(idx)), x(~isnan(idx)), [numel(edges)-1 1], @sum, 0);

@@ -125,7 +125,7 @@ classdef powerwall2_old
             if ~isempty(span) && ~isempty(files)
                 [~, names] = fileparts(files);
                 day = datetime(names, 'InputFormat', 'yyyyMMdd');
-                files = files(~(day < checkdate(span{1}) | day > checkdate(span{end})));
+                files = files(~(day < checkdate(span(1)) | day > checkdate(span(end))));
             end
 
             % Check files
@@ -177,7 +177,7 @@ classdef powerwall2_old
 
             % Step through days
             T = []; % Large table to hold all data
-            for day = checkdate(span{1}) : checkdate(span{end})
+            for day = checkdate(span(1)) : checkdate(span(end))
 
                 % Set output file path (no extension)
                 file = fullfile(obj.dataFold, sprintf('%s', obj.siteId), [char(day, 'yyyyMMdd') '.csv']);

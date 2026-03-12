@@ -1,7 +1,8 @@
 function GUI
-%% Paths
+% Constants
 guiFold = fileparts(mfilename('fullpath'));
 rootFold = fileparts(guiFold);
+rez = hours(5/60);
 
 % Icons:
 % D:\MATLAB\enkit\gui
@@ -61,11 +62,13 @@ uibutton         (ht,         'Position', [W- 40 H-260    30    30], 'Text', 'â†
 hStop = uieditfield(ht,       'Position', [W-130 H-300   120    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton         (ht,         'Position', [W-160 H-300    30    30], 'Text', 'â†¤', 'FontSize', 18, 'ButtonPushedFcn', @(~,~)trimTime(hStop.Value,0), 'Tooltip', 'Keep only points beofre this time');
 uibutton         (ht,         'Position', [W- 80 H-340    70    30], 'Text', 'Export',             'ButtonPushedFcn', @(~,~)export(hRoot),           'Tooltip', 'Plot data');
-uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Plot',               'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
+uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Heatmap+',           'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
+    
     function newData(h)
         h.Value = fullfile(guiFold, 'data');
-        updateData([])
+        clearData()
     end
+    
     function saveData(h, saveas)
         if isempty(gui.UserData), return, end
         if saveas || isempty(h.Value)
@@ -79,6 +82,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         end
         figure(gui)
     end
+    
     function loadData(h)
         [file, path] = uigetfile('*.mat', 'Open', h.Value); figure(gui)
         if isequal(file, 0), return, end
@@ -86,6 +90,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         T = load(h.Value, 'T').T;
         updateData(T)
     end
+    
     function editData(h,e)
         old = char(e.PreviousData);
         new = char(e.EditData);
@@ -105,11 +110,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         elseif name == "Label"
             T.Properties.VariableDescriptions{row} = new;
         elseif name == "Units" && var=="time"
-            if startsWith(new, '+')
-                T.time.TimeZone = new;
-            else
-                T.time.TimeZone = ['Australia/' new];
-            end
+            T.time.TimeZone = char(new);
             ind = strcmpi(string(zones), new);
             if any(ind)
                 h.Data.Units{row} = []; % Required for category reassignment
@@ -117,7 +118,6 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
                 T.Properties.VariableUnits{row} = char(zones(ind));
             end
         elseif name == "Units"
-            rez = hours(mode(diff(T.time)));
             switch old + ">" + new
                 case 'kw>kwh', T.(var) = T.(var) .* rez; T = renamevars(T, var, regexprep(var, '_kw$', '_kwh'));
                 case 'kwh>kw', T.(var) = T.(var) ./ rez; T = renamevars(T, var, regexprep(var, '_kwh$', '_kw'));
@@ -138,6 +138,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         end
         updateData(T)
     end
+
     function highlightRows(h, row)
         if nargin<2 % Allow programatic selection
             row = getRow(h);
@@ -145,6 +146,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         [R, C] = ndgrid(row, 1:size(h.Data,2));
         h.Selection = [R(:), C(:)];
     end
+
     function pickColor(h,e)
         if numel(e.Indices)~=2, return, end
         row = e.Indices(:, 1);
@@ -159,6 +161,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
             updateData(T)
         end
     end
+
     function moveRows(h, offset)
         row = getRow(h);
         if isempty(row), return; end
@@ -181,13 +184,14 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         T = T(:, newOrder);
         updateData(T)
     end
+    
     function copyRows(h)
         row = getRow(h);
         if isempty(row), return, end
         T = gui.UserData;
         t = T(:, row);
-        t = renamevars(t, t.Properties.VariableNames, t.Properties.VariableNames + "_copy");
-        updateData([T t])
+        t.Properties.VariableNames = t.Properties.VariableNames + "_copy";
+        updateData(synchronize(T, t)); % Use synchronize for timetables
     end
     function deleteRows(h)
         var = getVar(h, 1);
@@ -196,6 +200,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         T(:, var) = [];
         updateData(T)
     end
+    
     function clipNegative(h)
         var = getVar(h, 1);
         if isempty(var), return, end
@@ -210,6 +215,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         T(:, var) = varfun(@(x)min(x, 0), T(:, var));
         updateData(T)
     end
+    
     function flipSign(h)
         var = getVar(h, 1);
         if isempty(var), return, end
@@ -217,9 +223,10 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         T(:, var) = varfun(@(x)x.*-1, T(:, var));
         updateData(T)
     end
+    
     function trimTime(str, flag)
         T = gui.UserData;
-        t = datetime(str ,'TimeZone', T.time.TimeZone);
+        t = datetime(str, 'TimeZone', T.time.TimeZone);
         if flag
             T = T(T.time >= t, :);
         else
@@ -227,24 +234,24 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         end
         updateData(T)
     end
+    
     function plotRows(h)
         rows = getRow(h);
         if isempty(rows), return, end
         fig = figmode(figure, 'dark', 'MenuBar',' none', 'ToolBar', 'none', 'Name', 'Plot', 'Tag', 'enkit');
 
         set(fig, ...
-            WindowStyle = 'normal',...
+            WindowStyle = 'normal', ...
             DefaultAxesXGrid = 'on', ...
             DefaultAxesYGrid = 'on', ...
             DefaultAxesGridAlpha = 0.1, ...
-            DefaultAxesGridColor = [0.5 0.5 0.5],...
-            DefaultLineMarkerSize = 10,...
+            DefaultAxesGridColor = [0.5 0.5 0.5], ...
+            DefaultLineMarkerSize = 10, ...
             DefaultAxesXColor = [0.5 0.5 0.5], ...
             DefaultAxesYColor = [0.5 0.5 0.5], ...
             DefaultAxesXLimitMethod = 'tight', ...
             DefaultAxesYLimitMethod = 'tight', ...
             DefaultUicontrolFontWeight = 'bold');
-        %addToolbarExplorationButtons(gcf); %adds toolbar icons when ToolBar='figure'
 
         % Toolbar
         H = uitoolbar(fig);
@@ -271,19 +278,24 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
             lbl = T.Properties.VariableDescriptions{rows(k)};
             unit = T.Properties.VariableUnits{rows(k)};
             pos = [0 1-1/n*k 1 1/n]; % Axes position: [L B W H]
-            heatmapTimeVsDatePlus(T, 'time', var, col, lbl, unit, pos);
+            heatmapTimeVsDatePlus(T, var, col, lbl, unit, pos);
         end
         linkallaxes
     end
+
+    function clearData()
+        gui.UserData = [];
+        set(findobj(gui, 'Tag', 'start_time'), 'Value', '')
+        set(findobj(gui, 'Tag', 'stop_time'), 'Value', '')
+        hData.Data = {};
+        hImport.Items = {};
+        hExport.Items = {};
+        gui.Name = 'EnKit';
+    end
+
     function updateData(T)
         if isempty(T)
-            gui.UserData = [];
-            set(findobj(gui, 'Tag', 'start_time'), 'Value', '')
-            set(findobj(gui, 'Tag', 'stop_time'), 'Value', '')
-            hData.Data = {};
-            hImport.Items = {};
-            hExport.Items = {};
-            gui.Name = 'EnKit';
+            clearData()
             return
         end
 
@@ -296,10 +308,8 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         for k = width(T):-1:1
             t = T{:,k};
             switch T.Properties.VariableTypes(k)
-                case {'double' 'single' 'int'}
-                    %info(k,:) = {mean(t,1,'omitmissing') range(t) sum(~isfinite(t))/height(T)*100 min(t) max(t)};
+                case 'double'
                     info(k,:) = {mean(t,1,'omitmissing') sum(t,1,'omitmissing') range(t) sum(~isfinite(t))/height(T)*100 min(t) max(t)};
-                    'HACK!'
                 case {'datetime' 'duration'}
                     info(k,:) = {"" "" round(days(range(t)+rez),1)+"d" sum(~isfinite(t))/height(T)*100 strrep(string(min(t)), ' 00:00', '') strrep(string(max(t)+rez), ' 00:00', '')};
             end
@@ -340,6 +350,83 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(T.time))), width(T) - 1);
         drawnow
     end
+
+    function updateData_AI(T)
+
+        if isempty(T)
+            gui.UserData = [];
+            hData.Data = {};
+            gui.Name = 'EnKit';
+            return
+        end
+
+        T = conditionTable(T);
+        T.Properties.DimensionNames{1} = 'time';
+        gui.UserData = T;
+
+        time = T.time;
+        rez  = mode(diff(time));
+        nVar = width(T);
+
+        % Variable info
+        vars = string(T.Properties.VariableNames)';
+        info = table;
+        info.Property = vars;
+        info.Label    = string(T.Properties.VariableDescriptions)';
+        info.Units    = string(T.Properties.VariableUnits)';
+        info.Type     = string(T.Properties.VariableTypes)';
+
+        % Stats (numeric only)
+        info.Mean  = strings(nVar,1);
+        info.Sum   = strings(nVar,1);
+        info.Range = strings(nVar,1);
+        info.Fill  = zeros(nVar,1);
+        info.Min   = strings(nVar,1);
+        info.Max   = strings(nVar,1);
+
+        for k = 1:nVar
+            v = T.(vars(k));
+            if isnumeric(v)
+                info.Mean(k)  = mean(v,'omitnan');
+                info.Sum(k)   = sum(v,'omitnan');
+                info.Range(k) = range(v,'omitnan');
+                info.Fill(k)  = 100*nnz(~isnan(v))/numel(v);
+                info.Min(k)   = min(v);
+                info.Max(k)   = max(v);
+            end
+        end
+
+        % Colours
+        info.C1 = T.Properties.CustomProperties.C1';
+        info.C2 = T.Properties.CustomProperties.C2';
+        [i,j] = ismember(string(info.Units), string(units));
+        info.Units(i) = num2cell(units(j(i))); % Make a drop downs for units
+        [i,j] = ismember(string(info.Units), string(zones));
+        info.Units(i) = num2cell(zones(j(i))); % Make a drop downs for timezone
+        hData.ColumnWidth = {'auto' 'auto' 65 65 55 55 60 45 80 80 30 30};
+        hData.Data = info;
+
+        % Custom colours
+        i1 = find(hData.Data.Properties.VariableNames == "C1");
+        i2 = find(hData.Data.Properties.VariableNames == "C2");
+        for k = 1:width(T)
+            addStyle(hData, uistyle('BackgroundColor', T.Properties.CustomProperties.C1{k}), 'cell', [k i1]);
+            addStyle(hData, uistyle('BackgroundColor', T.Properties.CustomProperties.C2{k}), 'cell', [k i2]);
+        end
+        addStyle(hData, uistyle('FontColor', [0.4 0.4 0.4]), 'column', 4:i1-1)
+
+        % Dropdowns
+        numVars = T.Properties.VariableNames(vartype('numeric'));
+        hImport.Items = numVars;
+        hExport.Items = numVars;
+
+        % Time fields
+        set(findobj(gui,'Tag','start_time'), 'Value', string(min(time),'yyyy-MM-dd HH:mm'))
+        set(findobj(gui,'Tag','stop_time'), 'Value', string(max(time)+rez,'yyyy-MM-dd HH:mm'))
+
+        gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(time))), nVar);
+    end
+
     function appendData(t)
         try
             T = gui.UserData;
@@ -352,7 +439,8 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
                     T = removevars(T, duplicates);  % Remove duplicates columns
                 end
                 t = conditionTable(t);
-                T = outerjoin(T, t, 'Keys', 'time', 'MergeKeys', true);  % Join
+                T = synchronize(T, t, 'union');
+                T.Properties.DimensionNames{1} = 'time';
             end
             updateData(T)
         catch ex
@@ -363,7 +451,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Pl
         T = gui.UserData;
         T(:, vartype('numeric')) = varfun(@(x)round(x, 6), T(:, vartype('numeric')));
         file = [strrep(h.Value, '.mat', '') '.csv'];
-        writetable(T, file)
+        writetimetable(T, file)
         fprintf(' > %s\n', file)
     end
 
@@ -423,15 +511,15 @@ uilabel          (ht,         'Position', [   10 H-140    40    30], 'Text', 'St
 h = uidropdown   (ht,         'Position', [   50 H-140   100    30], 'Value', 'SA', 'Items', ["NSW" "QLD" "VIC" "SA" "TAS"]);
 uilabel          (ht,         'Position', [  290 H-140    80    30], 'Text', 'Date range:');
 t1 = uieditfield (ht,         'Position', [  360 H-140   120    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
-t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
-uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
+t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-5', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
+uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Read', 'ButtonPushedFcn', @(~,~)importAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
 uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
     function importAemoData(state, span)
         T = aemo().read(state, span);
         appendData(T);
     end
     function downloadAemoData(state, span)
-        aemo().download(state, span, hours(12))
+        aemo().download(state, span)
     end
 
 %% PVoutput
@@ -506,7 +594,11 @@ set(datacursormode(gui), 'UpdateFcn', @(~,e)updateDataTip(e), 'SnapToDataVertex'
 
 
 %% Sim Battery
-ht = uitab(tab, 'Title', 'Sim Battery');
+ht = uitab(tab, 'Title', 'Sim');
+uilabel         (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'sim battery')
+uilabel         (ht,         'Position', [   10 H-100 W- 40    30], 'Text', 'sim solar')
+uilabel         (ht,         'Position', [   10 H-140 W- 40    30], 'Text', 'calc battery value')
+uilabel         (ht,         'Position', [   10 H-180 W- 40    30], 'Text', 'calc solar value')
 
 %% Sim Solar
 ht = uitab(tab, 'Title', 'Sim Solar');
@@ -535,7 +627,7 @@ refreshTariffList()
         for k = 1:numel(dayList)
             ax = uiaxes(ht, 'Units', 'normalized', 'Position', [W*(k-1)+0.01 0.01 W*0.95 0.75], 'XLim', [0 24], 'YLim', [-15 65], 'XGrid', 'on', 'YGrid', 'on', 'Tag', 'previewTariff');
             xlabel(ax, 'Time of day (hours)')
-            if k == 1 
+            if k == 1
                 ylabel(ax, 'Price (c/kWh)', 'FontWeight', 'bold')
             end
             xticks(ax, 0:3:24)
@@ -561,7 +653,9 @@ refreshTariffList()
             sell_cost_c = -sell_ckwh.*T.(hExport.Value)*step;
             supply_cost_c = supply_c;
             cost_c = buy_ckwh.*T.(hImport.Value)*step - sell_ckwh.*T.(hExport.Value)*step + supply_c;
-            appendData(table(time, buy_ckwh, sell_ckwh, supply_c, buy_cost_c, sell_cost_c, supply_cost_c, cost_c));
+            % appendData(table(time, buy_ckwh, sell_ckwh, supply_c, buy_cost_c, sell_cost_c, supply_cost_c, cost_c));
+            res = timetable(time, buy_ckwh, sell_ckwh, supply_c, buy_cost_c, sell_cost_c, supply_cost_c, cost_c);
+            appendData(res);
         end
     end
 
@@ -579,11 +673,11 @@ t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAmberData({t1.Value, t2.Value}), 'Tooltip', 'Read data');
 uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData({t1.Value, t2.Value}), 'Tooltip', 'Download historic price data');
     function importAmberData(span)
-        T = amber().getPrices(span);
+        T = amber().read(span);
         appendData(T);
     end
     function downloadAmberData(span)
-        amber().getPrices(span);
+        amber().download(span);
     end
 
 %% Helper Functions
@@ -617,14 +711,14 @@ end
 end
 
 function T = conditionTable(T)
+if istable(T)
+    T = table2timetable(T, 'RowTimes', 'time');
+end
+T.Properties.DimensionNames{1} = 'time';
 if ~isprop(T, 'C1')
     T = addprop(T, {'C1' 'C2'}, {'variable' 'variable'});
     T.Properties.CustomProperties.C1{1} = [];
     T.Properties.CustomProperties.C2{1} = [];
-end
-if ~isprop(T, 'rez')
-    T = addprop(T, 'rez', 'table');
-    T.Properties.CustomProperties.rez = mode(diff(T.time));
 end
 for k = 1:width(T)
     if isempty(T.Properties.CustomProperties.C1{k})

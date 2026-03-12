@@ -77,8 +77,7 @@ classdef amber < handle
 
         function data = getSites(obj)
             % Download site information
-            [err, json] = obj.geturl('https://api.amber.com.au/v1/sites');
-            assert(~err, '%s', json) % Abort if error
+            json = obj.geturl('https://api.amber.com.au/v1/sites');
 
             % Parse data
             data = jsondecode(json);
@@ -109,12 +108,12 @@ classdef amber < handle
             if nargin < 3 || isempty(type), type = 'prices'; end
 
             % Initialise
-            dayvec = checkdate(span(1), '') : checkdate(span(end), '');
+            dayvec = checkdate(span(1), '') : checkdate(span(end), ''); % Remove timezone
 
             % Step through days
             for k = 1:numel(dayvec)                
                 % Skip if day is before activeFrom date
-                if ~isempty(obj.activeFrom) && dayvec(k) < datetime(obj.activeFrom)
+                if ~isempty(obj.activeFrom) && dayvec(k) < checkdate(obj.activeFrom, dayvec.TimeZone)
                     continue
                 end
 
@@ -130,9 +129,8 @@ classdef amber < handle
 
                 % Delete file, if its stale
                 if isfile(file)
-                    info = dir(file);
-                    t = datetime(info.date);
-                    if t < dayvec(k) + days(1) + hours(1) && t + minutes(30) < datetime('now')
+                    t = datetime(dir(file).date); % File modified date (local)
+                    if t < dayvec(k) + days(1) + hours(1) %&& t + minutes(30) < datetime('now')
                         delete(file);
                     end
                 end
@@ -141,9 +139,9 @@ classdef amber < handle
                 if ~isfile(file)
                     url_span = sprintf('startDate=%s&endDate=%s', char(dayvec(k), 'yyyy-MM-dd'), char(dayvec(k), 'yyyy-MM-dd'));
                     url = ['https://api.amber.com.au/v1/sites/' obj.id '/' type '?' url_span];
-                    [err, data] = obj.geturl(url);
-                    assert(~err, '%s', json) % Abort if error
-                    filewrite(file, data); % Save to file
+                    json = obj.geturl(url);
+                    filewrite(file, json); % Save to file
+                    fprintf(' > %s (%g b)\n', file, dir(file).bytes)
                 end
             end
         end
@@ -210,12 +208,10 @@ classdef amber < handle
                 mkdir(fold);
             end
             start_time = datetime('now', 'TimeZone', 'local'); % Download start time (local)
-            [err, json] = obj.geturl(sprintf('https://api.amber.com.au/v1/sites/%s/prices/current?previous=%g&next=%g&resolution=%g', obj.id, span, rez)); % Download
-            if err
-                fprintf(2, 'Error: %s\n', json) % Print errors to screen
-            end
-            d = jsondecode(json);
-            start_time.TimeZone = d{1}.nemTime(end-5:end); % Switch to nem time zone
+            url = sprintf('https://api.amber.com.au/v1/sites/%s/prices/current?previous=%g&next=%g&resolution=%g', obj.id, span, rez);
+            json = obj.geturl(url); % Download
+            data = jsondecode(json);
+            start_time.TimeZone = data{1}.nemTime(end-5:end); % Switch to nem time zone
             file = fullfile(fold, [char(start_time, 'yyyyMMdd_HHmmss') '.json']);
             filewrite(file, json)
         end
@@ -236,14 +232,14 @@ classdef amber < handle
             all_times = datetime(extractBetween({all_files.name}, 1, 13), 'InputFormat', 'yyyyMMdd_HHmm');
 
             T = [];
-            for day = checkdate(span{1}) : checkdate(span{2})
+            for day = checkdate2(span(1)) : checkdate2(span(end))
 
                 parquet = fullfile(obj.datafold, sprintf('forecast_%s_%gmin', obj.state, rez), [char(day, 'yyyyMMdd') '.parquet']);
 
                 if isfile(parquet)
                     t = datetime(dir(parquet).date);
-                    if t + days(2) > span{2} && t + minutes(4) < datetime
-                        fprintf(' Deleteing %s\n', parquet)
+                    if t + days(2) > span(2) && t + minutes(4) < datetime
+                        fprintf(' Deleting %s\n', parquet)
                         delete(parquet)
                     end
                 end
@@ -279,7 +275,7 @@ classdef amber < handle
 
             % Filter on time span
             time_zone = T.time.TimeZone;
-            T = T(T.time >= checkdate(span{1}, time_zone) & T.time < checkdate(span{2}, time_zone), :);
+            T = T(T.time >= checkdate2(span(1), time_zone) & T.time < checkdate2(span(end), time_zone), :);
 
             % Filter on forecast duration
             if ~isempty(forecast_limit)
@@ -289,7 +285,7 @@ classdef amber < handle
             T = sortrows(T, {'time' 'query' 'forecast'}); % Sort on time fields
         end
 
-        function [err, msg] = geturl(obj, url)
+        function [json, err] = geturl(obj, url)
             % Delay to avoid "Error: Too many requests"
             persistent time_of_last_download
             delay_between_downloads = 10; % (sec)
@@ -302,20 +298,23 @@ classdef amber < handle
             % Download
             cmd = sprintf('curl -sS -X GET "%s" -H "Authorization: Bearer %s"', url, obj.token); % curl download command
             fprintf(1, ' %s\n', cmd); % Display command
-            [err, msg] = system(cmd); % Run command
+            [err, json] = system(cmd); % Run command
 
             % Check for errors
-            if ~err && numel(msg) > 2
-                if msg(1) ~= '{' && numel(msg)<200
+            if ~err && numel(json) > 2
+                if json(1) ~= '{' && numel(json)<200
                     err = 1;
-                elseif numel(msg)<1000
-                    data = jsondecode(msg);
+                elseif numel(json)<1000
+                    data = jsondecode(json);
                     if isfield(data, 'message')
                         err = 1;
-                        msg = data.message;
+                        json = data.message;
                     end
                 end
             end
+
+            % Abort on error
+            assert(~err, '%s', json)
         end
     end
 end
@@ -469,7 +468,7 @@ vars = sort(vars(contains(vars,'_')));
 T = movevars(T, vars, 'After', 'renewables');
 end
 
-function day = checkdate(day, default_timezone)
+function day = checkdate2(day, default_timezone)
 % Ensure day is a date, discard time.
 if isnumeric(day) && day<1000
     day = datetime + day; % day is an offset

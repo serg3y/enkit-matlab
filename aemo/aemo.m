@@ -40,7 +40,7 @@ classdef aemo
         function download(obj, state, span, staleLim)
             % Download required month(s) of data to files
             %   download(state, span, staleLim)
-            if nargin<4 || isempty(staleLim), staleLim = hours(12); end
+            if nargin<4 || isempty(staleLim), staleLim = hours(0); end
 
             monthList = unique(dateshift(checkdate(span(1)) : checkdate(span(end)), 'start', 'month'));
             for month = monthList
@@ -63,6 +63,48 @@ classdef aemo
         end
 
         function T = read(obj, state, span)
+            % Read AEMO data for a given state and time span, resamples
+            % historic data to a 5-minute grid.
+
+            % Standardize time span and get months list
+            span = checkdate(span, '+10:00', minutes(5));
+            monthList = unique(dateshift(span(1):span(end), 'start', 'month'));
+
+            % Load and stack files
+            T = cell(numel(monthList), 1);
+            for k = 1:numel(monthList)
+                file = obj.monthFile(state, monthList(k));
+                if isfile(file)
+                    T{k} = readtable(file);
+                end
+            end
+            T = vertcat(T{:});
+            if isempty(T), T = timetable.empty; return, end
+
+            % Find interval start time
+            cutoverTime = datetime('2021-10-01', 'TimeZone', '+10:00');
+            n = cellfun(@numel, T.SETTLEMENTDATE);
+            time = NaT(height(T), 1, 'TimeZone', '+10:00');
+            time(n==19) = datetime(T.SETTLEMENTDATE(n==19), 'InputFormat', 'yyyy/MM/dd HH:mm:ss', 'TimeZone', '+10:00');
+            time(n==16) = datetime(T.SETTLEMENTDATE(n==16), 'InputFormat', 'yyyy/MM/dd HH:mm'   , 'TimeZone', '+10:00');
+            time = time - minutes(30 - 25*(time >= cutoverTime));
+
+            % Make a sorted timetable
+            T = timetable(time, T.RRP/10, T.TOTALDEMAND, 'VariableNames', ["price_ckwh" "usage_mwh"]);
+            T = sortrows(T, 'time'); % eg SA 2016/08/14 16:30:00 is not sorted
+
+            % Resample to a 5 min grid
+            T.temp = time;
+            T = retime(T, (span(1) : minutes(5) : span(2) - minutes(5)), 'previous');
+            ind = T.time - T.temp >= minutes(30) & T.time < cutoverTime;
+            T.temp = [];
+            T{ind, :} = nan; % NaN missing data
+
+            % Format time
+            T.time.Format = 'yyyy-MM-dd HH:mm';
+        end
+
+        function T = read_old(obj, state, span)
             % Read data
             fprintf(' Reading AEMO data...\n')
             monthList = unique(dateshift(checkdate(span(1), '+10:00') : checkdate(span(end), '+10:00'), 'start', 'month'));
@@ -87,8 +129,12 @@ classdef aemo
                 T = T(T.time >= checkdate(span(1), '+10:00') & T.time < checkdate(span(end), '+10:00'), :);
 
                 % Reformat data
-                s = upper(state);
-                T = table(T.time, T.RRP/10, T.TOTALDEMAND, 'VariableNames', ["time" s+"_price_ckwh" s+"_usage_mwh"]);
+                T = table(T.time, T.RRP/10, T.TOTALDEMAND, 'VariableNames', ["time" "price_ckwh" "usage_mwh"]);
+            
+                % Reasample to 5 min
+                T = table2timetable(T);
+                T = retime(T, 'regular', 'fillwithmissing', 'TimeStep', minutes(30));
+                T = retime(T, 'regular', 'previous', 'TimeStep', minutes(5));
             end
         end
 

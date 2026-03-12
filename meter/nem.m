@@ -6,21 +6,21 @@
 classdef nem
 
     methods
-        function [T, header] = read(~, files, span, names, rez, timezone)
-            % Read and condition NEM12 data file(s) into a table.
-            %   T = nem12read(files)             - File(s) to read (filename|wildcard)
-            %   T = nem12read(files, span)            - Rename column names (cellstr)
-            %   T = nem12read(files, span, names)         - Rename column names (cellstr)
-            %   T = nem12read(files, span, names, rez)         - Resample time period (min)
-            %   T = nem12read(files, span, names, rez, timezone)   - Change time zone (str)
-            %   [T, header] = nem12read(__)                  - Get header struct
+        function [T, header] = read(~, files, span, names, timezone)
+            % Read and condition NEM12 data file(s) into a timetable.
+            %   T = nem().read(files)
+            %   T = nem().read(files, span)
+            %   T = nem().read(files, span, names)
+            %   T = nem().read(files, span, names, timezone)
+            %   [T, header] = nem().read(__)
+
+            rez = 5; % Output resolution (minutes), always resample to this
 
             % Defaults
             if nargin < 2 || isempty(files),    files = cd; end
             if nargin < 3 || isempty(span),     span = []; end
-            if nargin < 4 || isempty(names),    names = "auto"; end % Field names
-            if nargin < 5 || isempty(rez),      rez = []; end
-            if nargin < 6 || isempty(timezone), timezone = '+10'; end % NEM TimeZone is always +10h
+            if nargin < 4 || isempty(names),    names = "auto"; end
+            if nargin < 5 || isempty(timezone), timezone = '+10'; end % NEM TimeZone is always +10h
             calcTotla = true;
             calcRates = true;
 
@@ -56,17 +56,19 @@ classdef nem
                 T(:, ind) = -1 .* T(:, ind);
             end
 
-            % Resample (optional)
-            if ~isempty(rez)
-                % Floor time to the nearest rez period
-                T.time = dateshift(T.time, 'start', 'minute') - minutes(mod(minute(T.time), rez));
-
-                % Sum across each period by time
-                T = groupsummary(T, 'time', @sum, T.Properties.VariableNames(2:end));
-
-                % Clean up helper variables
-                T = renamevars(T, T.Properties.VariableNames, strrep(T.Properties.VariableNames, 'fun1_', ''));
-                T = removevars(T, 'GroupCount');
+            % Resample to target resolution
+            rawRez_min = round(minutes(mode(diff(T.time))));
+            if rawRez_min ~= rez
+                Ttt = table2timetable(T, 'RowTimes', 'time');
+                if rawRez_min > rez
+                    % Upsample: scale kWh proportionally (flat consumption within interval)
+                    Ttt{:, :} = Ttt{:, :} / (rawRez_min / rez);
+                    Ttt = retime(Ttt, 'regular', 'previous', 'TimeStep', minutes(rez));
+                else
+                    % Downsample: sum kWh within each target window
+                    Ttt = retime(Ttt, 'regular', @sum, 'TimeStep', minutes(rez));
+                end
+                T = timetable2table(Ttt);
             end
 
             % Rename columns (optional)
@@ -88,7 +90,7 @@ classdef nem
 
             % Filter on time
             if ~isempty(span)
-                T = T(T.time >= checkdate(span(1), T.time.TimeZone) & T.time < checkdate(span(2), T.time.TimeZone), :);
+                T = T(T.time >= checkdate(span(1), T.time.TimeZone, 'day') & T.time < checkdate(span(end), T.time.TimeZone, 'day'), :);
             end
 
             % Total "grid" usage
@@ -179,19 +181,4 @@ time = reshape((data{1} + tod)', [], 1);
 time.Format = 'yyyy-MM-dd HH:mm';
 channel = repmat(string(block.channel), numel(kwh), 1);
 T = table(time, kwh, channel);
-end
-
-function day = checkdate(day, default_timezone)
-% Ensure day is a date.
-if isnumeric(day) && day<1000
-    day = datetime + day; % day is an offset
-elseif isnumeric(day)
-    day = datetime(day, 'ConvertFrom', 'datenum'); % day is datenum
-elseif ~isdatetime(day)
-    day = datetime(day); % day is string
-end
-day = dateshift(day, 'start', 'day');
-if nargin>1
-    day.TimeZone = default_timezone;
-end
 end

@@ -48,7 +48,7 @@ function myplot(time_field, value_field, span, rez)
 T = amber().readForecastData(span, rez, 24);
 
 % Progress
-fprintf(' %s', char(span{1}, 'yyyy-MM-dd'))
+fprintf(' %s', char(span(1), 'yyyy-MM-dd'))
 if isempty(T)
     fprintf(' (No data)\n')
     return

@@ -97,7 +97,7 @@ classdef pvoutput
 
 
         function T = readProduction(obj, sid, span)
-            days = datetime(span(1)) : datetime(span(2));
+            days = datetime(span(1)) : datetime(span(end));
             fold = fullfile(obj.datafold, num2str(sid));
             T = table();
             for k = 1:numel(days)
@@ -170,7 +170,7 @@ classdef pvoutput
             sid = string(sid);
             obj.downloadInfo(sid)
 
-            dayVec = checkdate(span(1)) : checkdate(span(2));
+            dayVec = checkdate(span(1)) : checkdate(span(end));
             fold = fullfile(obj.datafold, sid);
 
             if ~isfolder(fold)
