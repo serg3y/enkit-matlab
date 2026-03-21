@@ -338,7 +338,7 @@ if iscell(data)
             data{k} = rmfield(data{k}, 'advancedPrice'); % provides forecast price, in "prices" endpoints
         end
         if isfield(data{k}, 'estimate')
-            data{k} = rmfield(data{k}, 'estimate'); % indicates if record is an estimate in in "prices" endpoints
+            data{k} = rmfield(data{k}, 'estimate'); % indicates if record is an estimate in "prices" endpoints
         end
     end
     data = [data{:}];
