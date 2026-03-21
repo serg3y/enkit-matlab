@@ -2,7 +2,7 @@ function GUI
 % Constants
 guiFold = fileparts(mfilename('fullpath'));
 rootFold = fileparts(guiFold);
-rez = hours(5/60);
+rez = minutes(5);
 
 % Icons:
 % D:\MATLAB\enkit\gui
@@ -592,13 +592,12 @@ set(datacursormode(gui), 'UpdateFcn', @(~,e)updateDataTip(e), 'SnapToDataVertex'
         end
     end
 
-
 %% Sim Battery
 ht = uitab(tab, 'Title', 'Sim');
-uilabel         (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'sim battery')
-uilabel         (ht,         'Position', [   10 H-100 W- 40    30], 'Text', 'sim solar')
-uilabel         (ht,         'Position', [   10 H-140 W- 40    30], 'Text', 'calc battery value')
-uilabel         (ht,         'Position', [   10 H-180 W- 40    30], 'Text', 'calc solar value')
+uilabel         (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'sim battery');
+uilabel         (ht,         'Position', [   10 H-100 W- 40    30], 'Text', 'sim solar');
+uilabel         (ht,         'Position', [   10 H-140 W- 40    30], 'Text', 'calc battery value');
+uilabel         (ht,         'Position', [   10 H-180 W- 40    30], 'Text', 'calc solar value');
 
 %% Sim Solar
 ht = uitab(tab, 'Title', 'Sim Solar');
