@@ -1,4 +1,5 @@
 function GUI
+%% EnKit GUI - Energy data management and analysis interface
 % Constants
 guiFold = fileparts(mfilename('fullpath'));
 rootFold = fileparts(guiFold);
@@ -22,6 +23,7 @@ flipIcon = fullfile(guiFold, 'icons', 'flip.png');
 refrIcon = fullfile(guiFold, 'icons', 'refresh.png');
 copyIcon = fullfile(guiFold, 'icons', 'copy.png');
 delrIcon = fullfile(guiFold, 'icons', 'deleterow.png');
+
     function rgb = loadIcon(file)
         [rgb, ~, alpha] = imread(file);
         rgb = im2double(rgb);
@@ -57,9 +59,9 @@ uibutton         (ht,         'Position', [W- 40 H-140    30    30], 'Icon', del
 uibutton         (ht,         'Position', [W-160 H-180    30    30], 'Icon', rmnvIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)clipNegative(hData),     'Tooltip', 'Remove negative values');
 uibutton         (ht,         'Position', [W-120 H-180    30    30], 'Icon', rmpvIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)clipPositive(hData),     'Tooltip', 'Remove positive values');
 uibutton         (ht,         'Position', [W- 80 H-180    30    30], 'Icon', flipIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)flipSign(hData),         'Tooltip', 'Flip sign');
-hStart = uieditfield(ht,      'Position', [W-160 H-260   120    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
+hStart = uieditfield(ht,      'Position', [W-160 H-260   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
 uibutton         (ht,         'Position', [W- 40 H-260    30    30], 'Text', '↦', 'FontSize', 16, 'ButtonPushedFcn', @(~,~)trimTime(hStart.Value,1), 'Tooltip', 'Keep only points after this time');
-hStop = uieditfield(ht,       'Position', [W-130 H-300   120    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
+hStop = uieditfield(ht,       'Position', [W-130 H-300   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton         (ht,         'Position', [W-160 H-300    30    30], 'Text', '↤', 'FontSize', 18, 'ButtonPushedFcn', @(~,~)trimTime(hStop.Value,0), 'Tooltip', 'Keep only points beofre this time');
 uibutton         (ht,         'Position', [W- 80 H-340    70    30], 'Text', 'Export',             'ButtonPushedFcn', @(~,~)export(hRoot),           'Tooltip', 'Plot data');
 uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Heatmap+',           'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
@@ -193,6 +195,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         t.Properties.VariableNames = t.Properties.VariableNames + "_copy";
         updateData(synchronize(T, t)); % Use synchronize for timetables
     end
+
     function deleteRows(h)
         var = getVar(h, 1);
         if isempty(var), return, end
@@ -208,6 +211,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         T(:, var) = varfun(@(x)max(x, 0), T(:, var));
         updateData(T)
     end
+
     function clipPositive(h)
         var = getVar(h, 1);
         if isempty(var), return, end
@@ -315,10 +319,10 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
             end
         end
         info = [T.Properties.VariableNames' T.Properties.VariableDescriptions' T.Properties.VariableUnits' cellstr(T.Properties.VariableTypes)' info cell(width(T), 2)];
-        info = cell2table(info, 'VariableNames', {'Property' 'Label' 'Units' 'Type' 'Mean' 'Sum' 'Range' 'Fill%' 'Min' 'Max' 'C1' 'C2'});
+        info = cell2table(info, 'VariableNames', {'Property' 'Label' 'Units' 'Type' 'Mean' 'Sum' 'Range' 'Fill %' 'Min' 'Max' 'C1' 'C2'});
         [i,j] = ismember(string(info.Units), string(units)); info.Units(i) = num2cell(units(j(i))); % Make a drop downs for units
         [i,j] = ismember(string(info.Units), string(zones)); info.Units(i) = num2cell(zones(j(i))); % Make a drop downs for timezone
-        hData.ColumnWidth = {'auto' 'auto' 70 70 60 60 60 45 80 80 30 30};
+        hData.ColumnWidth = {'auto' 'auto' 70 70 60 60 60 60 60 60 30 30};
         hData.Data = info;
 
         % Custom colours
@@ -341,90 +345,13 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
             hExport.Value = 'export_kw';
         end
 
-        % Update start and stop times
-        set(findobj(gui, 'Tag', 'start_time'), 'Value', string(min(T.time), 'yyyy-MM-dd HH:mm'))
-        set(findobj(gui, 'Tag', 'stop_time'), 'Value', string(max(T.time) + rez, 'yyyy-MM-dd HH:mm'))
+        % Update start_time and stop_times
+        set(findobj(gui, 'Tag', 'start_time'), 'Value', string(min(T.time), dateFormat(min(T.time))));
+        set(findobj(gui, 'Tag', 'stop_time' ), 'Value', string(max(T.time) + rez, dateFormat(max(T.time) + rez)));
 
         % Update app title
-        % gui.Name = sprintf('%g days, %g properties, %gm rez, %s to %s - EnKit', round(days(range(T.time))), width(T), minutes(rez), char(T.time(1),'yyyy-MM-dd'), char(dateshift(T.time(end),'end','day'), 'yyyy-MM-dd'));
         gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(T.time))), width(T) - 1);
         drawnow
-    end
-
-    function updateData_AI(T)
-
-        if isempty(T)
-            gui.UserData = [];
-            hData.Data = {};
-            gui.Name = 'EnKit';
-            return
-        end
-
-        T = conditionTable(T);
-        T.Properties.DimensionNames{1} = 'time';
-        gui.UserData = T;
-
-        time = T.time;
-        rez  = mode(diff(time));
-        nVar = width(T);
-
-        % Variable info
-        vars = string(T.Properties.VariableNames)';
-        info = table;
-        info.Property = vars;
-        info.Label    = string(T.Properties.VariableDescriptions)';
-        info.Units    = string(T.Properties.VariableUnits)';
-        info.Type     = string(T.Properties.VariableTypes)';
-
-        % Stats (numeric only)
-        info.Mean  = strings(nVar,1);
-        info.Sum   = strings(nVar,1);
-        info.Range = strings(nVar,1);
-        info.Fill  = zeros(nVar,1);
-        info.Min   = strings(nVar,1);
-        info.Max   = strings(nVar,1);
-
-        for k = 1:nVar
-            v = T.(vars(k));
-            if isnumeric(v)
-                info.Mean(k)  = mean(v,'omitnan');
-                info.Sum(k)   = sum(v,'omitnan');
-                info.Range(k) = range(v,'omitnan');
-                info.Fill(k)  = 100*nnz(~isnan(v))/numel(v);
-                info.Min(k)   = min(v);
-                info.Max(k)   = max(v);
-            end
-        end
-
-        % Colours
-        info.C1 = T.Properties.CustomProperties.C1';
-        info.C2 = T.Properties.CustomProperties.C2';
-        [i,j] = ismember(string(info.Units), string(units));
-        info.Units(i) = num2cell(units(j(i))); % Make a drop downs for units
-        [i,j] = ismember(string(info.Units), string(zones));
-        info.Units(i) = num2cell(zones(j(i))); % Make a drop downs for timezone
-        hData.ColumnWidth = {'auto' 'auto' 65 65 55 55 60 45 80 80 30 30};
-        hData.Data = info;
-
-        % Custom colours
-        i1 = find(hData.Data.Properties.VariableNames == "C1");
-        i2 = find(hData.Data.Properties.VariableNames == "C2");
-        for k = 1:width(T)
-            addStyle(hData, uistyle('BackgroundColor', T.Properties.CustomProperties.C1{k}), 'cell', [k i1]);
-            addStyle(hData, uistyle('BackgroundColor', T.Properties.CustomProperties.C2{k}), 'cell', [k i2]);
-        end
-        addStyle(hData, uistyle('FontColor', [0.4 0.4 0.4]), 'column', 4:i1-1)
-
-        % Dropdowns
-        numVars = T.Properties.VariableNames(vartype('numeric'));
-        hImport.Items = numVars;
-        hExport.Items = numVars;
-
-        % Time fields
-        set(findobj(gui,'Tag','start_time'), 'Value', string(min(time),'yyyy-MM-dd HH:mm'))
-        set(findobj(gui,'Tag','stop_time'), 'Value', string(max(time)+rez,'yyyy-MM-dd HH:mm'))
-
-        gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(time))), nVar);
     end
 
     function appendData(t)
@@ -447,6 +374,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
             fprintf(2, '%s\n', ex.message)
         end
     end
+
     function export(h)
         T = gui.UserData;
         T(:, vartype('numeric')) = varfun(@(x)round(x, 6), T(:, vartype('numeric')));
@@ -465,6 +393,7 @@ h = uieditfield  (ht, 'text', 'Position', [   50 H-100 W-220    30], 'Value', fo
 uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', fileIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFile(h, '*.csv'), 'Tooltip', 'Select a file...');
 uibutton         (ht, 'push', 'Position', [W-120 H-100    30    30], 'Icon', foldIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFolder(h), 'Tooltip', 'Select a folder...');
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',             'ButtonPushedFcn', @(~,~)importNemData(h), 'Tooltip', 'Read data');
+    
     function importNemData(h)
         T = nem().read(h.Value);
         appendData(T)
@@ -483,10 +412,11 @@ uibutton        (ht, 'push',  'Position', [W- 80 H-100    70    30], 'Text', 'Im
 uilabel         (ht,          'Position', [   10 H-140    40    30], 'Text', 'Type:');
 uidropdown      (ht,          'Position', [   50 H-140   200    30], 'Items', {'Tesla Powerwall2'});
 uilabel         (ht,          'Position', [  280 H-140    80    30], 'Text', 'Date range:');
-t1 = uieditfield(ht,          'Position', [  350 H-140   120    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
-t2 = uieditfield(ht,          'Position', [  490 H-140   120    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
+t1 = uieditfield(ht,          'Position', [  350 H-140   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
+t2 = uieditfield(ht,          'Position', [  490 H-140   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uicheckbox      (ht,          'Position', [W-150 H-140   120    30], 'Value', 0, 'Text', 'Intersection only');
-    function importBatteryData(h)
+    
+    function importBatteryData(~)
         try
             T = powerwall2().read({t1.Value t2.Value});
             appendData(T)
@@ -510,14 +440,16 @@ uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', fol
 uilabel          (ht,         'Position', [   10 H-140    40    30], 'Text', 'State:');
 h = uidropdown   (ht,         'Position', [   50 H-140   100    30], 'Value', 'SA', 'Items', ["NSW" "QLD" "VIC" "SA" "TAS"]);
 uilabel          (ht,         'Position', [  290 H-140    80    30], 'Text', 'Date range:');
-t1 = uieditfield (ht,         'Position', [  360 H-140   120    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
-t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-5', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
+t1 = uieditfield (ht,         'Position', [  360 H-140   100    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
+t2 = uieditfield (ht,         'Position', [  500 H-140   100    30], 'Value', '-5', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Read', 'ButtonPushedFcn', @(~,~)importAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
 uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
+    
     function importAemoData(state, span)
         T = aemo().read(state, span);
         appendData(T);
     end
+
     function downloadAemoData(state, span)
         aemo().download(state, span)
     end
@@ -535,8 +467,8 @@ uilabel         (ht,         'Position', [   10 H-140    40    30], 'Text', 'Sys
 hSysId = uidropdown(ht,      'Position', [   50 H-140   100    30], 'Editable', 'on', 'ValueChangedFcn', @(s,~)selectPvSite(s.Value));
 hPvUrl = uihyperlink(ht,     'Position', [  160 H-140    50    30], 'Text', 'Map', 'URL', 'https://pvoutput.org/map.jsp?country=1&state=SA');  % Web links
 uilabel         (ht,         'Position', [  290 H-140    80    30], 'Text', 'Date range:');
-t1 = uieditfield(ht,         'Position', [  360 H-140   120    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
-t2 = uieditfield(ht,         'Position', [  500 H-140   120    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
+t1 = uieditfield(ht,         'Position', [  360 H-140   100    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
+t2 = uieditfield(ht,         'Position', [  500 H-140   100    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton        (ht, 'push', 'Position', [  740 H-140    70    30], 'Text', 'Description', 'ButtonPushedFcn', @(~,~)downloadPvoutoutInfo(0), 'Tooltip', 'Download description only');
 uibutton        (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadPvoutoutProduction({t1.Value, t2.Value}), 'Tooltip', 'Download production data');
 hPvMap = uiaxes (ht,         'Position', [   30    10   460   290], 'XLim', [112 155], 'YLim', [-44.5 -10], 'Clim', [0 100], 'XGrid', 'on', 'YGrid', 'on', 'NextPlot', 'add');
@@ -552,10 +484,17 @@ set(datacursormode(gui), 'UpdateFcn', @(~,e)updateDataTip(e), 'SnapToDataVertex'
         pvoutput().downloadInfo(hSysId.Value, staleThreshold)
         refreshPvSiteInfo(1)
     end
+
     function downloadPvoutoutProduction(span)
         pvoutput().downloadProduction(hSysId.Value, span)
         refreshPvSiteInfo(1)
     end
+
+    function importPVoutputData(s, path)
+        T = pvoutput().read(path);
+        appendData(T);
+    end
+
     function refreshPvSiteInfo(refresh)
         S = pvoutput().readPVlist(refresh);
         delete(findobj(hPvMap, 'Tag', 'PVsite'))
@@ -568,6 +507,7 @@ set(datacursormode(gui), 'UpdateFcn', @(~,e)updateDataTip(e), 'SnapToDataVertex'
         hSysId.UserData = S; % Store data in hSysId
         selectPvSite(hSysId.Value)
     end
+
     function selectPvSite(sysId)
         sysId = string(sysId);
         hSysId.Value = sysId;
@@ -582,6 +522,7 @@ set(datacursormode(gui), 'UpdateFcn', @(~,e)updateDataTip(e), 'SnapToDataVertex'
             hPvInfo.Value = '';
         end
     end
+
     function txt = updateDataTip(e) % Hacky
         if e.Target.Tag == "PVsite"
             s = e.Target.UserData;
@@ -602,22 +543,60 @@ uilabel         (ht,         'Position', [   10 H-180 W- 40    30], 'Text', 'cal
 %% Sim Solar
 ht = uitab(tab, 'Title', 'Sim Solar');
 
+%% Amber
+disp 1
+fold = fullfile(rootFold, 'amber', 'data');
+ht = uitab(tab, 'Title', 'Amber');
+uihyperlink      (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Download and import Amber price and usage data', 'URL', 'https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard');
+uibutton         (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'aemo', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
+uilabel          (ht,         'Position', [   10 H-100    70    30], 'Text', 'Input:', 'Tooltip', 'Enter a custom system ID and click Download');
+h = uieditfield  (ht, 'text', 'Position', [   50 H-100 W-220    30], 'Value', fold, 'Placeholder', 'Select file or folder');
+uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', foldIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFolder(h), 'Tooltip', 'Select a folder...');
+uilabel          (ht,         'Position', [  290 H-140    80    30], 'Text', 'Date range:');
+t1 = uieditfield (ht,         'Position', [  360 H-140   100    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
+t2 = uieditfield (ht,         'Position', [  500 H-140   100    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
+uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAmberData({t1.Value, t2.Value}), 'Tooltip', 'Read data');
+hDownloadBtn = uibutton(ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData({t1.Value, t2.Value}), 'Tooltip', 'Download historic price data');
+    
+    function importAmberData(span)
+        T = amber().read(span);
+        appendData(T);
+    end
+
+    function downloadAmberData(span)
+        hDownloadBtn.Text = 'Working...';
+        hDownloadBtn.Enable = 'off';
+        try
+            amber().download(span);
+            hDownloadBtn.Text = 'Download';
+        catch ex
+            hDownloadBtn.Text = 'Error'; pause(2)
+            hDownloadBtn.Text = 'Download';
+        end
+        hDownloadBtn.Enable = 'on';
+    end
+
 %% Tariffs
 ht = uitab(tab, 'Title', 'Tariffs');
-uilabel         (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Predict usage cost.', 'FontSize', 14);
-uibutton        (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'meter', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
-uilabel         (ht,         'Position', [   10 H-100    40    30], 'Text', 'Tariff:');
-hTariffs = uidropdown  (ht,  'Position', [   50 H-100   150    30], 'Items', {}, 'ValueChangedFcn', @(h,~)previewTariff(h,ht));
-uibutton        (ht, 'push', 'Position', [  200 H-100    30    30], 'Icon', refrIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)refreshTariffList(), 'Tooltip', 'Refresh list of Tariffs');
-uilabel         (ht,         'Position', [  250 H-100    40    30], 'Text', 'Import:');
-hImport = uidropdown(ht,     'Position', [  290 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
-uilabel         (ht,         'Position', [  450 H-100    40    30], 'Text', 'Export:');
-hExport = uidropdown(ht,     'Position', [  490 H-100   140    30], 'Items', {}, 'Placeholder', 'no data');
-uibutton        (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Caclulate', 'ButtonPushedFcn', @(~,~)calcTariffs(), 'Tooltip', 'Read data');
+uilabel         (ht,          'Position', [   10 H- 60 W- 40    30], 'Text', 'Predict usage cost.', 'FontSize', 14);
+uibutton        (ht, 'push',  'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'meter', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
+uilabel         (ht,          'Position', [   10 H-100    40    30], 'Text', 'Tariff:');
+hTariffs = uidropdown  (ht,   'Position', [   50 H-100   150    30], 'Items', {}, 'ValueChangedFcn', @(h,~)previewTariff(h,ht));
+uibutton        (ht, 'push',  'Position', [  200 H-100    30    30], 'Icon', refrIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)refreshTariffList(), 'Tooltip', 'Refresh list of Tariffs');
+uilabel         (ht,          'Position', [  250 H-100    40    30], 'Text', 'Import:');
+hImport = uidropdown(ht,      'Position', [  290 H-100    80    30], 'Items', {}, 'Placeholder', 'no data');
+uilabel         (ht,          'Position', [  380 H-100    40    30], 'Text', 'Export:');
+hExport = uidropdown(ht,      'Position', [  420 H-100    80    30], 'Items', {}, 'Placeholder', 'no data');
+uilabel         (ht,          'Position', [  510 H-100    80    30], 'Text', 'Date range:');
+t1 = uieditfield(ht,          'Position', [  580 H-100   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
+t2 = uieditfield(ht,          'Position', [  690 H-100   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
+uibutton        (ht, 'push',  'Position', [W- 80 H-100    70    30], 'Text', 'Caclulate', 'ButtonPushedFcn', @(~,~)calcTariffs(), 'Tooltip', 'Read data');
 refreshTariffList()
+
     function refreshTariffList()
         hTariffs.Items = unique(tariffs().tariff, 'stable');
     end
+
     function previewTariff(h, ht)
         delete(findobj(ht, 'Tag', 'previewTariff'))
         dayList = tariffs(h.Value).date';
@@ -640,6 +619,7 @@ refreshTariffList()
             title(ax, string(dayList(k)))
         end
     end
+
     function calcTariffs()
         T = gui.UserData;
         if ~isempty(T)
@@ -658,27 +638,6 @@ refreshTariffList()
         end
     end
 
-%% Amber
-fold = fullfile(rootFold, 'amber', 'data');
-ht = uitab(tab, 'Title', 'Amber');
-uihyperlink      (ht,         'Position', [   10 H- 60 W- 40    30], 'Text', 'Download and import Amber price and usage data', 'URL', 'https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard');
-uibutton         (ht, 'push', 'Position', [W- 40 H- 60    30    30], 'Icon', helpIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)showHelp(fullfile(rootFold, 'aemo', 'Readme.txt')), 'Tooltip', 'Open readme.txt');
-uilabel          (ht,         'Position', [   10 H-100    70    30], 'Text', 'Input:', 'Tooltip', 'Enter a custom system ID and click Download');
-h = uieditfield  (ht, 'text', 'Position', [   50 H-100 W-220    30], 'Value', fold, 'Placeholder', 'Select file or folder');
-uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', foldIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFolder(h), 'Tooltip', 'Select a folder...');
-uilabel          (ht,         'Position', [  290 H-140    80    30], 'Text', 'Date range:');
-t1 = uieditfield (ht,         'Position', [  360 H-140   120    30], 'Value', '-400', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
-t2 = uieditfield (ht,         'Position', [  500 H-140   120    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
-uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAmberData({t1.Value, t2.Value}), 'Tooltip', 'Read data');
-uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData({t1.Value, t2.Value}), 'Tooltip', 'Download historic price data');
-    function importAmberData(span)
-        T = amber().read(span);
-        appendData(T);
-    end
-    function downloadAmberData(span)
-        amber().download(span);
-    end
-
 %% Helper Functions
     function selectFile(h, type)
         [file, path] = uigetfile(type, 'Select file', h.Value); figure(gui)
@@ -686,6 +645,7 @@ uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Do
             h.Value = fullfile(path, file);
         end
     end
+
     function selectFolder(h)
         folder = uigetdir(h.Value, 'Select folder'); figure(gui)
         if ~isequal(folder, 0)
@@ -761,4 +721,12 @@ end
 function str = struct2str(S)
 t = [S.Properties.VariableNames; string(table2cell(S))];
 str = sprintf('%-11s %s\n', t{:});
+end
+
+function frmt = dateFormat(t)
+if timeofday(t) == 0
+    frmt = 'yyyy-MM-dd';
+else
+    frmt = 'yyyy-MM-dd HH:mm';
+end
 end
