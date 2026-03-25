@@ -1,27 +1,43 @@
-% Amber API cannot handle partial days. This wrapper does same.
-
-% Examples:
-% amber().getSites
-% amber().download({'2026-01-01' 0})
-
-
-% T = amber().getPrices({'2024-11-01' '2024-12-01'})
-% T = amber().getUsage({'2025-06-01' '2026-06-01'})
-% amber().downloadForecastPeriodicaly
-
-% amber('amber_luda.ini').getSites
-
-% Remarks:
-% "usage" is not available for current data and possibly last day
-% "prices" includes forecasts when time span includes future periods
-
-% Links
-% SA Power dashboard: https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard
+% MATLAB class for interacting with the Amber Electric API
+%
+% This class provides an convenient interface to download and process electricity
+% price and usage data from Amber Electric (Australia). It handles API authentication,
+% data retrieval, and conversion to MATLAB timetables.
+%
+% Key Features:
+% - Download historical and forecast electricity prices
+% - Retrieve smart meter usage data
+% - Automatic timezone handling (NEM time)
+% - Configurable via INI files for different sites/accounts
+% - Support for periodic forecast downloads
+%
+% Basic Usage:
+%   a = amber();                    % Initialize with default settings
+%   a = amber('config.ini');        % Use custom configuration file
+%   sites = a.getSites();           % Get available sites
+%   T = a.getPrices({'2024-01-01' '2024-01-31'});  % Download price data
+%   T = a.getUsage({'2024-01-01' '2024-01-31'});   % Download usage data
+%
+% Advanced Usage:
+%   a.download({'2024-01-01' '2024-01-31'}, 'prices');  % Download raw data
+%   T = a.read({'2024-01-01' '2024-01-31'}, 'prices');   % Read cached data
+%   a.downloadForecastPeriodically();  % Continuous forecast monitoring
+%
+% Limitations:
+% - API cannot handle partial days (full days only)
+% - Usage data not available for current/last day
+% - Prices include forecasts when requesting future dates
+%
+% Configuration:
+% Create an amber.ini file with properties like token, id, state, nmi, activeFrom
+%
+% See Also: https://customer.portal.sapowernetworks.com.au/meterdata/apex/cadenergydashboard
 
 classdef amber < handle
 
     properties
         datafold
+        inifile
         token
         id
         state
@@ -32,26 +48,26 @@ classdef amber < handle
     methods
 
         function obj = amber(varargin)
-            % Class constructor
+            % Class constructor - initializes Amber API client
 
             % Set output folder
             if isempty(obj.datafold)
                 obj.datafold = fullfile(fileparts(mfilename('fullpath')), 'data');
-            elseif fileparts(obj.datafold) == obj.datafold
+            elseif isempty(fileparts(obj.datafold))  % Check if it's a relative path (no directory separators)
                 obj.datafold = fullfile(fileparts(mfilename('fullpath')), obj.datafold);
             end
 
             % Select ini file
             if nargin==1
-                ini = varargin{1};
+                obj.inifile = varargin{1};
                 varargin(1) = [];
-            else
-                ini = fullfile(fileparts(mfilename('fullpath')), 'amber.ini');
+            elseif isempty(obj.inifile)
+                obj.inifile = fullfile(fileparts(mfilename('fullpath')), 'amber.ini');
             end
 
             % Read ini file
-            if isfile(ini)
-                txt = fileread(ini);
+            if isfile(obj.inifile)
+                txt = fileread(obj.inifile);
                 for prop = string(properties(obj)')
                     value = regexp(txt, "(?<=^\s*" + prop + "\s*=\s*)[^ \r\n]*", 'match', 'once', 'lineanchors'); % Find the value
                     if ~isempty(value)
@@ -67,30 +83,26 @@ classdef amber < handle
 
             % Download site id, if needed
             if isempty(obj.id)
-                site = obj.getSites;
-                disp(site)
-                disp(site.channels)
-                obj.id = site.id;
-                fprintf('To skip this step in the future assign "id" property in "amber.ini" file to the "id" value above.\n')
+                fprintf('Getting site information:\n')
+                sites = obj.getSites;
+                obj.id = sites.id;
+                obj.activeFrom = sites.activeFrom;
+                disp(sites)
+                disp(sites.channels)
+                fprintf(' To skip this step append "id=%s" to "%s".\n', sites.id, obj.inifile)
             end
         end
 
-        function data = getSites(obj)
+        function sites = getSites(obj)
             % Download site information
             json = obj.geturl('https://api.amber.com.au/v1/sites');
-
-            % Parse data
-            data = jsondecode(json);
-            if isfield(data, 'channels') % Convert channels field to a table of strings
-                t = varfun(@string, struct2table(data.channels));
-                t.Properties.VariableNames = fieldnames(data.channels);
-                data.channels = t;
+            sites = jsondecode(json);
+            if isfield(sites, 'channels') % Convert channels field to a table of strings
+                t = varfun(@string, struct2table(sites.channels));
+                t.Properties.VariableNames = fieldnames(sites.channels);
+                sites.channels = t;
             end
-
-            obj.id = site.id;
-
-            disp(site)
-            disp(site.channels)
+            obj.id = sites.id;
         end
 
         function T = getPrices(obj, span)
@@ -119,18 +131,20 @@ classdef amber < handle
 
                 % File path
                 switch type
-                    case 'usage', t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
-                    case 'prices', t = sprintf('%s_%s', type, obj.state);
+                    case 'usage'
+                        t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
+                    case 'prices'
+                        t = sprintf('%s_%s', type, obj.state);
                 end
                 file = fullfile(obj.datafold, t, [char(dayvec(k), 'yyyyMMdd') '.json']);
                 if ~isfolder(fileparts(file))
                     mkdir(fileparts(file));
                 end
 
-                % Delete file, if its stale
+                % Delete file if it's stale (older than the day after the data date)
                 if isfile(file)
                     t = datetime(dir(file).date); % File modified date (local)
-                    if t < dayvec(k) + days(1) + hours(1) %&& t + minutes(30) < datetime('now')
+                    if t < dayvec(k) + days(1) + hours(1)
                         delete(file);
                     end
                 end
@@ -139,6 +153,7 @@ classdef amber < handle
                 if ~isfile(file)
                     url_span = sprintf('startDate=%s&endDate=%s', char(dayvec(k), 'yyyy-MM-dd'), char(dayvec(k), 'yyyy-MM-dd'));
                     url = ['https://api.amber.com.au/v1/sites/' obj.id '/' type '?' url_span];
+                    fprintf(' %g/%g ', k, numel(dayvec))
                     json = obj.geturl(url);
                     filewrite(file, json); % Save to file
                     fprintf(' > %s (%g b)\n', file, dir(file).bytes)
@@ -159,8 +174,10 @@ classdef amber < handle
 
                 % File path
                 switch type
-                    case 'usage', t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
-                    case 'prices', t = sprintf('%s_%s', type, obj.state);
+                    case 'usage'
+                        t = sprintf('%s_%s_%s', type, obj.state, obj.nmi);
+                    case 'prices'
+                        t = sprintf('%s_%s', type, obj.state);
                 end
                 file = fullfile(obj.datafold, t, [char(dayvec(k), 'yyyyMMdd') '.json']);
 
@@ -171,11 +188,11 @@ classdef amber < handle
             end
 
             % Make one table
-            T = vertcat(T{:});
+            T = vertcat(T{~cellfun(@isempty, T)});
         end
 
-        function downloadForecastPeriodicaly(obj)
-            % Periodically downloads price forecasts, every 5 min.
+        function downloadForecastPeriodically(obj)
+            % Periodically downloads price forecasts, every 5 minutes.
             % - Downloads 24 hrs @ 30 min data and 1 hrs @ 5 min.
             % - Downloads are delayed by 30 sec after the 5 minute mark to
             %   allow for prices to be published.
@@ -297,7 +314,7 @@ classdef amber < handle
 
             % Download
             cmd = sprintf('curl -sS -X GET "%s" -H "Authorization: Bearer %s"', url, obj.token); % curl download command
-            fprintf(1, ' %s\n', cmd); % Display command
+            fprintf(1, ' %s', cmd); % Display command
             [err, json] = system(cmd); % Run command
 
             % Check for errors
@@ -342,6 +359,9 @@ if iscell(data)
         end
     end
     data = [data{:}];
+end
+if isempty(data)
+    T = []; return % Empty file
 end
 
 % Make a table
