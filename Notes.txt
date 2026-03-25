@@ -1,0 +1,6 @@
+Configure VS Code for MATLAB:
+- Install "MATLAB" extension by MathWorks.
+- File > Preferences > Settings and find MATLAB
+- Set "MATLAB: Install Path" = C:\Program Files\MATLAB\R2024b
+- Enable "Start Debugger Automatically"
+- (optional) Install "MATLAB Formatter" > run using Alt+Shift+F
