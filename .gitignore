@@ -12,6 +12,7 @@
 *.ini
 *.bat
 *.mat
+*.ffs_*
 cookie.txt
 cookies.txt
 *token.txt
