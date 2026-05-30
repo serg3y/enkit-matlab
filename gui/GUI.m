@@ -65,12 +65,12 @@ hStop = uieditfield(ht,       'Position', [W-130 H-300   100    30], 'Placeholde
 uibutton         (ht,         'Position', [W-160 H-300    30    30], 'Text', '↤', 'FontSize', 18, 'ButtonPushedFcn', @(~,~)trimTime(hStop.Value,0), 'Tooltip', 'Keep only points beofre this time');
 uibutton         (ht,         'Position', [W- 80 H-340    70    30], 'Text', 'Export',             'ButtonPushedFcn', @(~,~)export(hRoot),           'Tooltip', 'Plot data');
 uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'Heatmap+',           'ButtonPushedFcn', @(~,~)plotRows(hData),         'Tooltip', 'Plot data');
-    
+
     function newData(h)
         h.Value = fullfile(guiFold, 'data');
         clearData()
     end
-    
+
     function saveData(h, saveas)
         if isempty(gui.UserData), return, end
         if saveas || isempty(h.Value)
@@ -84,7 +84,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         end
         figure(gui)
     end
-    
+
     function loadData(h)
         [file, path] = uigetfile('*.mat', 'Open', h.Value); figure(gui)
         if isequal(file, 0), return, end
@@ -92,18 +92,22 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         T = load(h.Value, 'T').T;
         updateData(T)
     end
-    
+
     function editData(h,e)
         old = char(e.PreviousData);
         new = char(e.EditData);
-        if isequal(new, old), return, end
+        if isequal(new, old)
+            return
+        end
         row = e.Indices(1);
         col = e.Indices(2);
         var = getVar(h);
         name = h.ColumnName{col};
         T = gui.UserData;
         if name == "Property"
-            if old == "time", return, end % time is read only
+            if old == "time"
+                return % time is read only
+            end
             try
                 T = renamevars(T, e.PreviousData, e.NewData);
             catch ex
@@ -111,7 +115,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
             end
         elseif name == "Label"
             T.Properties.VariableDescriptions{row} = new;
-        elseif name == "Units" && var=="time"
+        elseif name == "Units" && var == "time"
             T.time.TimeZone = char(new);
             ind = strcmpi(string(zones), new);
             if any(ind)
@@ -186,7 +190,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         T = T(:, newOrder);
         updateData(T)
     end
-    
+
     function copyRows(h)
         row = getRow(h);
         if isempty(row), return, end
@@ -203,7 +207,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         T(:, var) = [];
         updateData(T)
     end
-    
+
     function clipNegative(h)
         var = getVar(h, 1);
         if isempty(var), return, end
@@ -219,7 +223,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         T(:, var) = varfun(@(x)min(x, 0), T(:, var));
         updateData(T)
     end
-    
+
     function flipSign(h)
         var = getVar(h, 1);
         if isempty(var), return, end
@@ -227,7 +231,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         T(:, var) = varfun(@(x)x.*-1, T(:, var));
         updateData(T)
     end
-    
+
     function trimTime(str, flag)
         T = gui.UserData;
         t = datetime(str, 'TimeZone', T.time.TimeZone);
@@ -238,7 +242,7 @@ uibutton         (ht,         'Position', [W- 80    10    70    30], 'Text', 'He
         end
         updateData(T)
     end
-    
+
     function plotRows(h)
         rows = getRow(h);
         if isempty(rows), return, end
@@ -393,7 +397,7 @@ h = uieditfield  (ht, 'text', 'Position', [   50 H-100 W-220    30], 'Value', fo
 uibutton         (ht, 'push', 'Position', [W-160 H-100    30    30], 'Icon', fileIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFile(h, '*.csv'), 'Tooltip', 'Select a file...');
 uibutton         (ht, 'push', 'Position', [W-120 H-100    30    30], 'Icon', foldIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)selectFolder(h), 'Tooltip', 'Select a folder...');
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',             'ButtonPushedFcn', @(~,~)importNemData(h), 'Tooltip', 'Read data');
-    
+
     function importNemData(h)
         T = nem().read(h.Value);
         appendData(T)
@@ -415,7 +419,7 @@ uilabel         (ht,          'Position', [  280 H-140    80    30], 'Text', 'Da
 t1 = uieditfield(ht,          'Position', [  350 H-140   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
 t2 = uieditfield(ht,          'Position', [  490 H-140   100    30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uicheckbox      (ht,          'Position', [W-150 H-140   120    30], 'Value', 0, 'Text', 'Intersection only');
-    
+
     function importBatteryData(~)
         try
             T = powerwall2().read({t1.Value t2.Value});
@@ -444,7 +448,7 @@ t1 = uieditfield (ht,         'Position', [  360 H-140   100    30], 'Value', '-
 t2 = uieditfield (ht,         'Position', [  500 H-140   100    30], 'Value', '-5', 'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Read', 'ButtonPushedFcn', @(~,~)importAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Read data');
 uibutton         (ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAemoData(h.Value, {t1.Value, t2.Value}), 'Tooltip', 'Download production data');
-    
+
     function importAemoData(state, span)
         T = aemo().read(state, span);
         appendData(T);
@@ -557,7 +561,7 @@ t1 = uieditfield (ht,         'Position', [  360 H-140   100    30], 'Value', '-
 t2 = uieditfield (ht,         'Position', [  500 H-140   100    30], 'Value', '-5',   'Placeholder', 'yyyy-mm-dd', 'Tag', 'stop_time');
 uibutton         (ht, 'push', 'Position', [W- 80 H-100    70    30], 'Text', 'Import',   'ButtonPushedFcn', @(~,~)importAmberData({t1.Value, t2.Value}), 'Tooltip', 'Read data');
 hDownloadBtn = uibutton(ht, 'push', 'Position', [W- 80 H-140    70    30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData({t1.Value, t2.Value}), 'Tooltip', 'Download historic price data');
-    
+
     function importAmberData(span)
         T = amber().read(span);
         appendData(T);
@@ -638,7 +642,14 @@ refreshTariffList()
         end
     end
 
-%% Helper Functions
+%% Inflation
+% - Create a new tab called "Inflation" 
+% - Add a download button that will download Australian inflation data to
+%  "Inflation" folder from this URL:
+%  https://fred.stlouisfed.org/graph/fredgraph.csv?id=AUSCPIALLQINMEI
+% - Add a read button that will load the file as a table
+
+%% Helper Functions 1
     function selectFile(h, type)
         [file, path] = uigetfile(type, 'Select file', h.Value); figure(gui)
         if ~isequal(file, 0)
@@ -654,6 +665,7 @@ refreshTariffList()
     end
 
 end
+
 %% Helper Functions 2
 function showHelp(helpFile)
 txt = fileread(helpFile);  % Read file
