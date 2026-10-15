@@ -1,5 +1,5 @@
 function access_token = my_access_token(force)
-% Returns a Tesla 'access_token'. Eithe a cached one from file, if its
+% Returns a Tesla 'access_token'. Either a cached one from file, if its
 % fresh, or a new one from auth.tesla.com using a 'refresh_token'.
 %   access_token = my_access_token()
 %   access_token = my_access_token(force)    - force update (default:0)

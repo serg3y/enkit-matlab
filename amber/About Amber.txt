@@ -15,6 +15,7 @@ One caveat, IF you have a large solar array AND a small battery AND this array i
 
 More links:
   https://help.amber.com.au/hc/en-us/articles/23408555825165-Cash-rebate-for-South-Australian-SmartShift-customers-SA-REPS  (VPP rebate)
+  https://help.amber.com.au/hc/en-us/articles/35922375367181-SmartShift-Status (known issues)
   https://www.youtube.com/watch?v=yOCfJ4T_oxQ (focuses on limitations)
   https://www.youtube.com/watch?v=GTk_XUqvAOE (app description)
   https://www.youtube.com/watch?v=SN0xQEamVck  (amber app)

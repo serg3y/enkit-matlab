@@ -15,8 +15,8 @@ function app = TariffsTab(tabGroup, app, cfg)
     hExport = uidropdown(ht, 'Position', [420 H-100 80 30], 'Items', {}, 'Placeholder', 'no data');
     
     uilabel(ht, 'Position', [510 H-100 80 30], 'Text', 'Date range:');
-    t1 = uieditfield(ht, 'Position', [580 H-100 100 30], 'Tag', 'start_time');
-    t2 = uieditfield(ht, 'Position', [690 H-100 100 30], 'Tag', 'stop_time');
+    t1 = uieditfield(ht, 'Position', [580 H-100 100 30], 'Tag', 'start_time', 'Placeholder', 'yyyy-mm-dd');
+    t2 = uieditfield(ht, 'Position', [690 H-100 100 30], 'Tag', 'stop_time', 'Placeholder', 'yyyy-mm-dd');
     uibutton(ht, 'push', 'Position', [W-80 H-100 70 30], 'Text', 'Calculate', 'ButtonPushedFcn', @(~,~)calcTariffs());
 
     app.hImport = hImport;

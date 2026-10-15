@@ -26,6 +26,10 @@ uibutton(ht, 'Position', [W-160 H-180 30 30], 'Icon', cfg.rmnvIcon, 'Text', '', 
 uibutton(ht, 'Position', [W-120 H-180 30 30], 'Icon', cfg.rmpvIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)clipPositive(hData), 'Tooltip', 'Remove positive values');
 uibutton(ht, 'Position', [W- 80 H-180 30 30], 'Icon', cfg.flipIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)flipSign(hData), 'Tooltip', 'Flip sign');
 
+uibutton(ht, 'Position', [W-160 H-220 30 30], 'Text', 'f1', 'ButtonPushedFcn', @(~,~)fillHoles(hData), 'Tooltip', 'Fill holes (linear interpolation)');
+uibutton(ht, 'Position', [W-120 H-220 30 30], 'Text', 'f2', 'ButtonPushedFcn', @(~,~)fun2(hData), 'Tooltip', 'Fun2');
+uibutton(ht, 'Position', [W- 80 H-220 30 30], 'Text', 'f3', 'ButtonPushedFcn', @(~,~)fun3(hData), 'Tooltip', 'Fun3');
+
 % Time Trim
 hStart = uieditfield(ht, 'Position', [W-160 H-260 100 30], 'Placeholder', 'yyyy-mm-dd', 'Tag', 'start_time');
 uibutton(ht, 'Position', [W-40 H-260 30 30], 'Text', '↦', 'ButtonPushedFcn', @(~,~)trimTime(hStart.Value,1));
@@ -49,7 +53,7 @@ app.DataTab_Update = @updateUI;
             end
         end
         info = [T.Properties.VariableNames' T.Properties.VariableDescriptions' T.Properties.VariableUnits' cellstr(T.Properties.VariableTypes)' info cell(width(T), 2)];
-        info = cell2table(info, 'VariableNames', {'Property' 'Label' 'Units' 'Type' 'Mean' 'Sum' 'Range' 'Fill %' 'Min' 'Max' 'C1' 'C2'});
+        info = cell2table(info, 'VariableNames', {'Property' 'Label' 'Units' 'Type' 'Mean' 'Sum' 'Range' 'Holes' 'Min' 'Max' 'C1' 'C2'});
 
         [i,j] = ismember(string(info.Units), string(cfg.units)); info.Units(i) = num2cell(cfg.units(j(i)));
         [i,j] = ismember(string(info.Units), string(cfg.zones)); info.Units(i) = num2cell(cfg.zones(j(i)));
@@ -177,34 +181,66 @@ app.DataTab_Update = @updateUI;
     end
 
     function copyRows(h)
-        row = app.getRow(h); if isempty(row), return, end
+        row = app.getRow(h);
+        if isempty(row), return, end
         T = gui.UserData; t = T(:, row);
         t.Properties.VariableNames = t.Properties.VariableNames + "_copy";
         app.appendData(t);
     end
 
     function deleteRows(h)
-        var = app.getVar(h, 1); if isempty(var), return, end
-        T = gui.UserData; T(:, var) = []; app.updateData(T)
+        var = app.getVar(h, 1);
+        if isempty(var), return, end
+        T = gui.UserData; T(:, var) = [];
+        app.updateData(T)
     end
 
     function clipNegative(h)
-        var = app.getVar(h, 1); if isempty(var), return, end
-        T = gui.UserData; T(:, var) = varfun(@(x)max(x, 0), T(:, var)); app.updateData(T)
+        var = app.getVar(h, 1);
+        if isempty(var), return, end
+        T = gui.UserData; T(:, var) = varfun(@(x)max(x, 0), T(:, var));
+        app.updateData(T)
     end
 
     function clipPositive(h)
-        var = app.getVar(h, 1); if isempty(var), return, end
-        T = gui.UserData; T(:, var) = varfun(@(x)min(x, 0), T(:, var)); app.updateData(T)
+        var = app.getVar(h, 1);
+        if isempty(var), return, end
+        T = gui.UserData; T(:, var) = varfun(@(x)min(x, 0), T(:, var));
+        app.updateData(T)
     end
 
     function flipSign(h)
-        var = app.getVar(h, 1); if isempty(var), return, end
-        T = gui.UserData; T(:, var) = varfun(@(x)x.*-1, T(:, var)); app.updateData(T)
+        var = app.getVar(h, 1);
+        if isempty(var), return, end
+        T = gui.UserData; T(:, var) = varfun(@(x)x.*-1, T(:, var));
+        app.updateData(T)
     end
 
+    function fillHoles(h)
+        var = app.getVar(h, 1);
+        if isempty(var), return, end
+        T = gui.UserData;
+        T(:, var) = varfun(@(x)fillmissing(x, 'linear'), T(:, var));
+        app.updateData(T)
+     end
+
+     function fun2(h)
+        var = app.getVar(h, 1);
+        if isempty(var), return, end
+        T = gui.UserData; T(:, var) = varfun(@(x)x.*2, T(:, var));
+        app.updateData(T)
+     end
+
+     function fun3(h)
+        var = app.getVar(h, 1);
+        if isempty(var), return, end
+        T = gui.UserData; T(:, var) = varfun(@(x)x.^2, T(:, var));
+        app.updateData(T)
+     end
+
     function trimTime(str, flag)
-        T = gui.UserData; t = datetime(str, 'TimeZone', T.time.TimeZone);
+        T = gui.UserData;
+        t = datetime(str, 'TimeZone', T.time.TimeZone);
         if flag, T = T(T.time >= t, :); else, T = T(T.time < t, :); end
         app.updateData(T)
     end
@@ -215,7 +251,8 @@ app.DataTab_Update = @updateUI;
     end
 
     function plotRows(h)
-        rows = app.getRow(h); if isempty(rows), return, end
+        rows = app.getRow(h);
+        if isempty(rows), return, end
         T = gui.UserData; n = numel(rows);
         fig = figmode(figure, 'dark', 'MenuBar', 'none', 'ToolBar', 'none', 'Name', 'Plot', 'Tag', 'enkit');
 
@@ -240,9 +277,14 @@ app.DataTab_Update = @updateUI;
         uitoolfactory(H, 'Exploration.Pan');
         uitoolfactory(H, 'Exploration.DataCursor');
 
-        function saveFig(f)
-            [file, path] = uiputfile({'*.png';'*.jpg'}, 'Save as');
-            if ~isequal(file,0), exportgraphics(f, fullfile(path,file)); end
+        function saveFig(fig)
+            defaultPath = enkitPath('GUI', 'plots');
+            if ~isfolder(defaultPath)
+                mkdir(defaultPath)
+            end
+            [file, path] = uiputfile({'*.png'; '*.jpg'}, 'Save as', defaultPath);
+            if isequal(file, 0), return, end
+            figsave(fig, fullfile(path, file), [1920 1080])
         end
 
         for k = 1:n

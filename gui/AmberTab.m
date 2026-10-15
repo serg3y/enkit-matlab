@@ -11,8 +11,8 @@ function app = AmberTab(tabGroup, app, cfg)
     uibutton(ht, 'push', 'Position', [W-160 H-100 30 30], 'Icon', cfg.foldIcon, 'Text', '', 'ButtonPushedFcn', @(~,~)app.selectFolder(h));
     
     uilabel(ht, 'Position', [290 H-140 80 30], 'Text', 'Date range:');
-    t1 = uieditfield(ht, 'Position', [360 H-140 100 30], 'Value', '-400', 'Tag', 'start_time');
-    t2 = uieditfield(ht, 'Position', [500 H-140 100 30], 'Value', '-5', 'Tag', 'stop_time');
+    t1 = uieditfield(ht, 'Position', [360 H-140 100 30], 'Tag', 'start_time', 'Placeholder', 'yyyy-mm-dd');
+    t2 = uieditfield(ht, 'Position', [500 H-140 100 30], 'Tag', 'stop_time', 'Placeholder', 'yyyy-mm-dd');
     
     uibutton(ht, 'push', 'Position', [W-80 H-100 70 30], 'Text', 'Import', 'ButtonPushedFcn', @(~,~)importAmberData());
     hDownloadBtn = uibutton(ht, 'push', 'Position', [W-80 H-140 70 30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadAmberData());

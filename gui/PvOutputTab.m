@@ -16,8 +16,8 @@ function app = PvOutputTab(tabGroup, app, cfg)
     hPvUrl = uihyperlink(ht, 'Position', [160 H-140 50 30], 'Text', 'Map', 'URL', 'https://pvoutput.org/map.jsp?country=1&state=SA');
     
     uilabel(ht, 'Position', [290 H-140 80 30], 'Text', 'Date range:');
-    t1 = uieditfield(ht, 'Position', [360 H-140 100 30], 'Value', '-400', 'Tag', 'start_time');
-    t2 = uieditfield(ht, 'Position', [500 H-140 100 30], 'Value', '-5', 'Tag', 'stop_time');
+    t1 = uieditfield(ht, 'Position', [360 H-140 100 30], 'Value', '-400', 'Tag', 'start_time', 'Placeholder', 'yyyy-mm-dd');
+    t2 = uieditfield(ht, 'Position', [500 H-140 100 30], 'Value', '-5', 'Tag', 'stop_time', 'Placeholder', 'yyyy-mm-dd');
     
     uibutton(ht, 'push', 'Position', [740 H-140 70 30], 'Text', 'Description', 'ButtonPushedFcn', @(~,~)downloadPvoutoutInfo(0));
     uibutton(ht, 'push', 'Position', [W-80 H-140 70 30], 'Text', 'Download', 'ButtonPushedFcn', @(~,~)downloadPvoutoutProduction({t1.Value, t2.Value}));

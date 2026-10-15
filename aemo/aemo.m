@@ -2,10 +2,15 @@
 % wholesale electricity PRICE and DEMAND data.
 %
 % Remarks:
-% - AEMO changes sampling from 30 min to 5 minutes on 2021-10-01 00:00
-% - 'RRP' is the state's Regional Reference Price in $/MWh (exGST)
-% - 'rrp' is same but in c/kWh (rrp=RRP/10)
-% - 'time' is the start time of each interval
+% - SETTLEMENTDATE is end of each data period, sampling changed from 30 min
+%   to 5 min on 2021-10-01 00:00 
+% - RRP is the state's Regional Reference Price in $/MWh (exGST)
+% - TOTALDEMAND: statewide usage rate in MW
+%
+% The read method resamples all data to 5 min and outputs
+% - time: start time of each interval, 5 min sampling
+% - price_ckwh: spot price, rrp=RRP/10, in c/kWh (exGST)
+% - usage_mw: statewide usage rate, usage=TOTALDEMAND/1000, in GW
 %
 % Example:
 %   aemo(staleLim=hours(0)).download('SA', {'2024-07-01' 0})
@@ -40,29 +45,38 @@ classdef aemo
         function download(obj, state, span, staleLim)
             % Download required month(s) of data to files
             %   download(state, span, staleLim)
+            if nargin<3 || isempty(span), span = {'2000-01-01' 0}; end
             if nargin<4 || isempty(staleLim), staleLim = hours(0); end
 
             monthList = unique(dateshift(checkdate(span(1)) : checkdate(span(end)), 'start', 'month'));
             for month = monthList
                 [file, url] = obj.monthFile(state, month);
+                fprintf('  %s > %s', weblink(url), filelink(file))
 
                 % Skip if the file exists and is complete or not stale
-                if isfile(file) && (complete(file) || ~stale(file, staleLim))
+                if isfile(file) && (checkCompletenes(file) || ~stale(file, staleLim))
+                    fprintf('  (skip)\n')
                     continue
                 end
 
                 % Download
-                fprintf('  %s > %s', url, file)
                 folder = fileparts(file);
                 if ~isfolder(folder)
                     mkdir(folder)
                 end
-                websave(file, url);
-                fprintf('  (%g b)\n', dir(file).bytes)
+                try
+                    websave(file, url);
+                    fprintf('  (%g b)\n', dir(file).bytes)
+                catch ex
+                    fprintf(2, '  (error)\n%s\n', ex.message)
+                    if isfile([file '.html'])
+                        delete([file '.html'])
+                    end
+                end
             end
         end
 
-        function T = read(obj, state, span)
+        function TT = read(obj, state, span)
             % Read AEMO data for a given state and time span, resamples
             % historic data to a 5-minute grid.
 
@@ -79,7 +93,9 @@ classdef aemo
                 end
             end
             T = vertcat(T{:});
-            if isempty(T), T = timetable.empty; return, end
+            if isempty(T)
+                TT = timetable.empty; return
+            end
 
             % Find interval start time
             cutoverTime = datetime('2021-10-01', 'TimeZone', '+10:00');
@@ -90,18 +106,19 @@ classdef aemo
             time = time - minutes(30 - 25*(time >= cutoverTime));
 
             % Make a sorted timetable
-            T = timetable(time, T.RRP/10, T.TOTALDEMAND, 'VariableNames', ["price_ckwh" "usage_mwh"]);
-            T = sortrows(T, 'time'); % eg SA 2016/08/14 16:30:00 is not sorted
+            TT = timetable(time, time, T.RRP/10, T.TOTALDEMAND/1000, 'VariableNames', ["temp" "price_ckwh" "usage_gw"]);
+            TT = sortrows(TT); % eg SA 2016/08/14 16:30:00 is not sorted
 
             % Resample to a 5 min grid
-            T.temp = time;
-            T = retime(T, (span(1) : minutes(5) : span(2) - minutes(5)), 'previous');
-            ind = T.time - T.temp >= minutes(30) & T.time < cutoverTime;
-            T.temp = [];
-            T{ind, :} = nan; % NaN missing data
+            TT = retime(TT, (span(1) : minutes(5) : span(2) - minutes(5)), 'previous');
+
+            % NaN missing data
+            ind = TT.time - TT.temp >= minutes(30) & TT.time < cutoverTime;
+            TT.temp = [];
+            TT{ind, :} = nan;
 
             % Format time
-            T.time.Format = 'yyyy-MM-dd HH:mm';
+            TT.time.Format = 'yyyy-MM-dd HH:mm';
         end
 
         function T = read_old(obj, state, span)
@@ -129,7 +146,7 @@ classdef aemo
                 T = T(T.time >= checkdate(span(1), '+10:00') & T.time < checkdate(span(end), '+10:00'), :);
 
                 % Reformat data
-                T = table(T.time, T.RRP/10, T.TOTALDEMAND, 'VariableNames', ["time" "price_ckwh" "usage_mwh"]);
+                T = table(T.time, T.RRP/10, T.TOTALDEMAND, 'VariableNames', ["time" "price_ckwh" "usage_gw"]);
             
                 % Reasample to 5 min
                 T = table2timetable(T);
@@ -146,12 +163,12 @@ classdef aemo
     end
 end
 
-function tf = complete(file)
+function tf = checkCompletenes(file)
 fid = fopen(file, 'r');
 fseek(fid, -100, 'eof'); % Read last 100 bytes in file
 txt = fread(fid, Inf, '*char')';
 fclose(fid);
-tf = contains(txt, '01 00:00:00'); % Completed files end with the start of next month
+tf = contains(txt, '01 00:00:00') | contains(txt, '01 00:00"'); % A completed file ends with the start of next month
 end
 
 function tf = stale(file, staleLim)

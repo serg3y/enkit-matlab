@@ -58,6 +58,8 @@ app = AmberTab(tab, app, cfg);
 app = TariffsTab(tab, app, cfg);
 app = InflationTab(tab, app, cfg);
 
+clearData()
+
 %% Core Shared Functions
     function rgb = loadIcon(file)
         [rgb, ~, alpha] = imread(file);
@@ -67,8 +69,8 @@ app = InflationTab(tab, app, cfg);
 
     function clearData()
         gui.UserData = [];
-        set(findobj(gui, 'Tag', 'start_time'), 'Value', '')
-        set(findobj(gui, 'Tag', 'stop_time'), 'Value', '')
+        set(findobj(gui, 'Tag', 'start_time'), 'Value', string(datetime('today') - years(1), 'yyyy-MM-dd'))
+        set(findobj(gui, 'Tag', 'stop_time'), 'Value', string(datetime('today'), 'yyyy-MM-dd'))
         if isfield(app, 'hData'), app.hData.Data = {}; end
         if isfield(app, 'hImport'), app.hImport.Items = {}; end
         if isfield(app, 'hExport'), app.hExport.Items = {}; end
@@ -78,24 +80,22 @@ app = InflationTab(tab, app, cfg);
     function updateData(T)
         if isempty(T)
             clearData()
-            return
+        else
+            % Validate and assign data
+            T = app.conditionTable(T);
+            gui.UserData = T;
+
+            % Forward update to modular components
+            if isfield(app, 'DataTab_Update'), app.DataTab_Update(T, cfg); end
+            if isfield(app, 'TariffsTab_Update'), app.TariffsTab_Update(T); end
+
+            % Update start_time and stop_times
+            set(findobj(gui, 'Tag', 'start_time'), 'Value', string(min(T.time), app.dateFormat(min(T.time))));
+            set(findobj(gui, 'Tag', 'stop_time' ), 'Value', string(max(T.time) + cfg.rez, app.dateFormat(max(T.time) + cfg.rez)));
+
+            % Update app title
+            gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(T.time))), width(T));
         end
-
-        % Validate and assign data
-        T = app.conditionTable(T);
-        gui.UserData = T;
-
-        % Forward update to modular components
-        if isfield(app, 'DataTab_Update'), app.DataTab_Update(T, cfg); end
-        if isfield(app, 'TariffsTab_Update'), app.TariffsTab_Update(T); end
-
-        % Update start_time and stop_times
-        set(findobj(gui, 'Tag', 'start_time'), 'Value', string(min(T.time), app.dateFormat(min(T.time))));
-        set(findobj(gui, 'Tag', 'stop_time' ), 'Value', string(max(T.time) + cfg.rez, app.dateFormat(max(T.time) + cfg.rez)));
-
-        % Update app title
-        gui.Name = sprintf('%g days x %g properties - EnKit', round(days(range(T.time))), width(T) - 1);
-        drawnow
     end
 
     function appendData(t)
@@ -106,10 +106,14 @@ app = InflationTab(tab, app, cfg);
             else
                 duplicates = setdiff(intersect(T.Properties.VariableNames, t.Properties.VariableNames), 'time');
                 if ~isempty(duplicates)
-                    fprintf(' Discarded previous data: %s\n', strjoin(duplicates, ', '))
+                    fprintf(' Discarding previous data: %s\n', strjoin(duplicates, ', '))
                     T = removevars(T, duplicates);
                 end
                 t = app.conditionTable(t);
+                if ~strcmp(t.time.TimeZone, T.time.TimeZone)
+                    fprintf(' Changing time zone from "%s" to "%s"\n', t.time.TimeZone, T.time.TimeZone)
+                    t.time.TimeZone = T.time.TimeZone;
+                end
                 T = synchronize(T, t, 'union');
                 T.Properties.DimensionNames{1} = 'time';
             end

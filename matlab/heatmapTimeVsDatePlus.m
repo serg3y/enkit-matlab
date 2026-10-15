@@ -52,6 +52,7 @@ end
 
 % Compute TOD + Date
 [T.tod, T.date] = timeofday(T.time);
+T.date.Format = 'yyyy-MM-dd'; % Diplay only
 
 % Main plot dimensions
 L = 0.08; % left
