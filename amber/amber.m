@@ -123,7 +123,7 @@ classdef amber < handle
             dayvec = checkdate(span(1), '') : checkdate(span(end), ''); % Remove timezone
 
             % Step through days
-            for k = 1:numel(dayvec)                
+            for k = 1:numel(dayvec)
                 % Skip if day is before activeFrom date
                 if ~isempty(obj.activeFrom) && dayvec(k) < checkdate(obj.activeFrom, dayvec.TimeZone)
                     continue

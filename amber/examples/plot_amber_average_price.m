@@ -9,11 +9,11 @@ T = aemo().getPrice(state, span);
 T.month = month(T.date);
 
 %% Spot + Tariff
-g = groupsummary(T, 'tod', @mean, 'rrp');
+g = groupsummary(T, 'tod', @mean, 'price_ckwh');
 x = g.tod;
-y_tariff = tariffs(tariff_name, T.time, g.fun1_rrp);
+y_tariff = tariffs(tariff_name, g.tod, g.fun1_price_ckwh);
 
-figmode(1, 'dark', 'handy')
+figmode(1, 'dark')
 plotspread2(gca, x, y_tariff, [], [1 1 0], state);
 ylim([-5 75])
 xlim(duration([0 24], 0, 0))
@@ -26,12 +26,12 @@ legend show location NW
 figsave(gcf, 'plots\sa_average_price_simple.png', [1200 800])
 
 %% Tariff
-g = groupsummary(T, 'tod', @mean, 'rrp');
+g = groupsummary(T, 'tod', @mean, 'price_ckwh');
 x = g.tod;
-y_rrp = g.fun1_rrp;
+y_rrp = g.fun1_price_ckwh;
 y_tariff = tariffs(tariff_name, g.tod);
 
-figmode(1, 'dark', 'handy')
+figmode(1, 'dark')
 subplot(221)
 plotspread2(gca, x, y_tariff, [], [0 1 0], 'Tariff')
 ylim([-5 75])
@@ -77,12 +77,12 @@ linkallaxes
 figsave(gcf, 'plots\sa_average_price.png', [800 600])
 
 %% Monthly
-figmode(3, 'dark', 'handy')
+figmode(3, 'dark')
 
 for m = 1:12
-    g = groupsummary(T(month(T.date) == m,:), {'month' 'tod'}, @mean, 'spot');
+    g = groupsummary(T(month(T.date) == m,:), {'month' 'tod'}, @mean, 'price_ckwh');
     x = g.tod;
-    y = tariffs(tariff, g.tod, g.fun1_spot);
+    y = tariffs(tariff_name, g.tod, g.fun1_price_ckwh);
     c = interp1(linspace(-5, 55, 100), jet(100), mean(y)); % interpolate colors
     t = string(datetime(2025, m, 1), 'MMM  ') + round(mean(y),1) + "c";
 
