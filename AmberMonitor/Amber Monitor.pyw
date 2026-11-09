@@ -6,7 +6,7 @@
 #      id = YOUR_SITE_ID
 #      state = SA
 
-import os, json, re, subprocess, threading, time, base64, winsound, math
+import os, json, re, subprocess, threading, time, base64, winsound, math, configparser
 from functools import partial
 from operator import itemgetter
 import tkinter as tk
@@ -27,9 +27,11 @@ except ImportError as e:
 # Ensure all file operations use the absolute path of the script directory
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "data")  # cached API responses live here
+CONFIG_PATH = os.path.join(SCRIPT_DIR, "Amber Monitor.cfg")  # saved UI settings
 os.makedirs(DATA_DIR, exist_ok=True)
 ACTION_FG = "#8be9fd"  # blue used for clickable header controls
 PRICE_LABEL_WIDTH = 16  # field-name column width in the price tab
+NO_PRICE_TEXT = " --"  # shown for any price row with no value
 PRICE_TRACES = ("Buy", "Buy (Controlled)", "Sell", "Uncertainty")  # legend entries, in plot order
 USAGE_TRACES = ("Imported", "Imported (Controlled)", "Exported")
 HEADER_ICON_FONT = ("Segoe UI Emoji", 11, "bold")  # same emoji font as the speaker buttons
@@ -118,51 +120,106 @@ def log_error(msg):
     except Exception as e:
         print(f"Logging failed: {e}")
 
-def enforce_single_instance():
-    """Kills any other running instances of this script via system process list."""
-    current_pid = os.getpid()
-    script_name = os.path.basename(__file__)
+LOCK_PATH = os.path.join(SCRIPT_DIR, "Amber Monitor.lock")  # holds the PID of the running instance
+QUIT_REQUEST_PATH = os.path.join(SCRIPT_DIR, "Amber Monitor.quit")  # written by a newer instance to ask this one to close
+
+
+def _pid_is_running(pid):
+    """True if a process with this PID exists. Uses Windows tasklist, or signal 0 elsewhere."""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            out = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
+                capture_output=True, text=True, timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            ).stdout
+        except Exception:
+            return False
+        return f'"{pid}"' in out
     try:
-        if os.name == 'nt':
-            escaped_script_name = script_name.replace("'", "''")
-            cmd = (
-                "$ErrorActionPreference = 'Stop'; "
-                f"$currentPid = {current_pid}; "
-                f"$scriptName = '{escaped_script_name}'; "
-                "$anc = @(); $p = $currentPid; while ($p -and $anc -notcontains $p) { $anc += $p; $p = (Get-CimInstance Win32_Process -Filter ('ProcessId=' + $p)).ParentProcessId }; "
-                "$procs = Get-CimInstance Win32_Process | Where-Object { "
-                "$_.Name -match '^python(w|[0-9.]*)?\\.exe$' -and "
-                "$_.CommandLine -like ('*' + $scriptName + '*') -and "
-                "$_.ProcessId -ne $currentPid -and $_.ProcessId -notin $anc }; "
-                "foreach ($p in $procs) { "
-                "try { "
-                "Stop-Process -Id $p.ProcessId -Force; "
-                "Wait-Process -Id $p.ProcessId "
-                "} catch { "
-                "if (Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue) { throw } "
-                "} }"
-            )
-            result = subprocess.run(
-                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", cmd],
-                capture_output=True,
-                text=True,
-                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
-                timeout=15,
-            )
-            if result.returncode:
-                details = result.stderr.strip() or result.stdout.strip()
-                log_error(f"Singleton check warning: PowerShell exited with {result.returncode}: {details}")
-        else:
-            import getpass
-            user = getpass.getuser()
-            output = subprocess.run(f"pgrep -u {user} -f '{script_name}'", shell=True, capture_output=True, text=True)
-            if output.stdout:
-                for p_id in output.stdout.strip().split('\n'):
-                    if p_id.isdigit() and int(p_id) != current_pid:
-                        os.kill(int(p_id), 9)
-        time.sleep(0.5)
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def enforce_single_instance():
+    """Stop the instance recorded in the lock file, if it is still running, then claim the lock.
+
+    Only the PID stored in the lock file is touched, so unrelated processes (including the
+    debugger's launcher, which carries the script path on its command line) are never killed.
+    """
+    current_pid = os.getpid()
+    try:
+        _take_over_previous_instance(current_pid)
+    except KeyboardInterrupt:
+        # A stop signal during the handover should not stop this instance from starting
+        pass
     except Exception as e:
         log_error(f"Singleton check warning: {e}")
+
+
+def _take_over_previous_instance(current_pid):
+    try:
+        previous = None
+        if os.path.exists(LOCK_PATH):
+            try:
+                with open(LOCK_PATH, "r", encoding="utf-8") as f:
+                    previous = int(f.read().strip())
+            except (OSError, ValueError):
+                previous = None
+        if previous and previous != current_pid and _pid_is_running(previous):
+            # Ask the old instance to close itself, so a debugger attached to it is not disturbed
+            with open(QUIT_REQUEST_PATH, "w", encoding="utf-8") as f:
+                f.write(str(current_pid))
+            for _ in range(50):  # wait up to ~5s for a graceful exit
+                if not _pid_is_running(previous):
+                    break
+                time.sleep(0.1)
+            else:
+                subprocess.run(
+                    ["taskkill", "/PID", str(previous), "/F"] if os.name == "nt" else ["kill", "-9", str(previous)],
+                    capture_output=True, timeout=10,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                for _ in range(20):
+                    if not _pid_is_running(previous):
+                        break
+                    time.sleep(0.1)
+        with open(LOCK_PATH, "w", encoding="utf-8") as f:
+            f.write(str(current_pid))
+    except Exception as e:
+        log_error(f"Singleton check warning: {e}")
+    finally:
+        try:
+            os.remove(QUIT_REQUEST_PATH)
+        except OSError:
+            pass
+
+
+def _check_quit_request(app):
+    """Called from the UI loop: close this instance if a newer one has asked it to."""
+    if os.path.exists(QUIT_REQUEST_PATH):
+        try:
+            with open(QUIT_REQUEST_PATH, "r", encoding="utf-8") as f:
+                requester = int(f.read().strip())
+        except (OSError, ValueError):
+            return
+        if requester != os.getpid():
+            app.root.destroy()
+
+
+def release_lock():
+    """Remove the lock file only if this process still owns it."""
+    try:
+        with open(LOCK_PATH, "r", encoding="utf-8") as f:
+            owner = int(f.read().strip())
+        if owner == os.getpid():
+            os.remove(LOCK_PATH)
+    except (OSError, ValueError):
+        pass
 
 def load_ini_config():
     token, site_id, state = "", "", ""
@@ -199,6 +256,98 @@ def format_age(seconds):
     return f"{seconds / 3600:.1f}h"
 
 
+SPEAKER_KEYS = (
+    "sound", "est_sound", "buy_low", "buy_high", "buy_c_low", "buy_c_high", "sell_low", "sell_high",
+)
+THRESHOLD_KEYS = ("buy_low", "buy_high", "buy_c_low", "buy_c_high", "sell_low", "sell_high")
+SECTION_TITLES = ("Sites", "Renewables", "Recent Prices", "Price History and Forecast", "Usage History")
+FIELD_SECTIONS = ("Sites", "Recent Prices")
+TRACE_SECTIONS = ("Price History and Forecast", "Usage History")
+
+
+class _CaseKeepingParser(configparser.ConfigParser):
+    """Keep option names exactly as written (e.g. 'Network', 'Buy (Controlled)')."""
+    def optionxform(self, optionstr):
+        return optionstr
+
+
+def load_settings():
+    """Return saved settings. A missing file, section, key or bad value just leaves that entry out."""
+    settings = {"visible": {}, "fields": {}, "traces": {}, "speakers": {}, "thresholds": {}, "polling": None}
+    parser = _CaseKeepingParser()
+    try:
+        if not parser.read(CONFIG_PATH, encoding="utf-8"):
+            return settings
+    except (configparser.Error, OSError) as e:
+        log_error(f"Could not read {os.path.basename(CONFIG_PATH)}: {e}")
+        return settings
+
+    def get_bool(section, key):
+        try:
+            return parser.getboolean(section, key)
+        except (configparser.Error, ValueError):
+            return None
+
+    def get_float(section, key):
+        try:
+            value = float(parser.get(section, key))
+        except (configparser.Error, ValueError):
+            return None
+        return value if math.isfinite(value) else None
+
+    for title in SECTION_TITLES:
+        value = get_bool("sections", title)
+        if value is not None:
+            settings["visible"][title] = value
+    for section in FIELD_SECTIONS:
+        name = f"fields {section}"
+        for field in (parser[name] if parser.has_section(name) else ()):
+            value = get_bool(name, field)
+            if value is not None:
+                settings["fields"][(section, field)] = value
+    for section in TRACE_SECTIONS:
+        name = f"traces {section}"
+        for trace in (parser[name] if parser.has_section(name) else ()):
+            value = get_bool(name, trace)
+            if value is not None:
+                settings["traces"][(section, trace)] = value
+    for key in SPEAKER_KEYS:
+        value = get_bool("speakers", key)
+        if value is not None:
+            settings["speakers"][key] = value
+    for key in THRESHOLD_KEYS:
+        value = get_float("thresholds", key)
+        if value is not None:
+            settings["thresholds"][key] = value
+    polling = get_float("polling", "live_interval")
+    if polling is not None and 1.0 <= polling <= 3600.0:
+        settings["polling"] = polling
+    return settings
+
+
+def save_settings(data):
+    """Write the config atomically. Errors are logged, never raised into the UI."""
+    parser = _CaseKeepingParser()
+    parser["sections"] = {t: str(v) for t, v in data["visible"].items()}
+    grouped = {}
+    for (section, field), value in data["fields"].items():
+        grouped.setdefault(f"fields {section}", {})[field] = str(value)
+    for (section, trace), value in data["traces"].items():
+        grouped.setdefault(f"traces {section}", {})[trace] = str(value)
+    for name, entries in grouped.items():
+        parser[name] = entries
+    parser["speakers"] = {k: str(v) for k, v in data["speakers"].items()}
+    parser["thresholds"] = {k: repr(float(v)) for k, v in data["thresholds"].items()}
+    parser["polling"] = {"live_interval": repr(float(data["polling"]))}
+    tmp_path = CONFIG_PATH + ".tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            parser.write(f)
+        os.replace(tmp_path, CONFIG_PATH)
+    except Exception as e:
+        log_error(f"Could not write {os.path.basename(CONFIG_PATH)}: {e}")
+
+
 class AmberMonitorApp:
     def __init__(self, root):
         enforce_single_instance()
@@ -219,6 +368,7 @@ class AmberMonitorApp:
             log_error(f"Icon load warning: {e}")
 
         self.token, self.site_id, self.state = load_ini_config()
+        self.saved = load_settings()
         
         w, h = 500, 944
         screen_w = root.winfo_screenwidth()
@@ -256,7 +406,7 @@ class AmberMonitorApp:
             self._on_mousewheel
         )
 
-        self.live_interval = LIVE_INTERVAL
+        self.live_interval = self.saved["polling"] if self.saved["polling"] is not None else LIVE_INTERVAL
 
         self.last_sites_fetch_timestamp = None
         self.last_fetch_timestamp = None
@@ -282,30 +432,32 @@ class AmberMonitorApp:
         self.last_buy = None
         self.last_sell = None
         
-        self.sound_enabled = False
-        self.est_sound_enabled = False
+        sp = self.saved["speakers"]
+        self.sound_enabled = sp.get("sound", False)
+        self.est_sound_enabled = sp.get("est_sound", False)
 
-        self.buy_low_enabled = False
-        self.buy_low_thresh = DEFAULT_BUY_LOW_THRESH
+        self.buy_low_enabled = sp.get("buy_low", False)
+        th = self.saved["thresholds"]
+        self.buy_low_thresh = th.get("buy_low", DEFAULT_BUY_LOW_THRESH)
 
-        self.buy_high_enabled = False
-        self.buy_high_thresh = DEFAULT_BUY_HIGH_THRESH
+        self.buy_high_enabled = sp.get("buy_high", False)
+        self.buy_high_thresh = th.get("buy_high", DEFAULT_BUY_HIGH_THRESH)
 
-        self.sell_low_enabled = False
-        self.sell_low_thresh = DEFAULT_SELL_LOW_THRESH
+        self.sell_low_enabled = sp.get("sell_low", False)
+        self.sell_low_thresh = th.get("sell_low", DEFAULT_SELL_LOW_THRESH)
 
-        self.sell_high_enabled = False
-        self.sell_high_thresh = DEFAULT_SELL_HIGH_THRESH
+        self.sell_high_enabled = sp.get("sell_high", False)
+        self.sell_high_thresh = th.get("sell_high", DEFAULT_SELL_HIGH_THRESH)
 
         self.current_buy_val = None
         self.current_sell_val = None
         self.current_controlled_val = None
 
-        self.buy_c_low_enabled = False
-        self.buy_c_low_thresh = DEFAULT_BUY_LOW_THRESH
+        self.buy_c_low_enabled = sp.get("buy_c_low", False)
+        self.buy_c_low_thresh = th.get("buy_c_low", DEFAULT_BUY_LOW_THRESH)
 
-        self.buy_c_high_enabled = False
-        self.buy_c_high_thresh = DEFAULT_BUY_HIGH_THRESH
+        self.buy_c_high_enabled = sp.get("buy_c_high", False)
+        self.buy_c_high_thresh = th.get("buy_c_high", DEFAULT_BUY_HIGH_THRESH)
         
         # --- Outside Section: System Time & Next Period ---
         top_info_frame = tk.Frame(self.content_frame, bg="#1e1e1e")
@@ -361,14 +513,14 @@ class AmberMonitorApp:
             buy_frame = tk.Frame(body)
             buy_frame.pack(anchor="w", pady=1)
             tk.Label(buy_frame, text="Buy Price:", width=PRICE_LABEL_WIDTH, anchor="e").pack(side="left")
-            self.lbl_buy = tk.Label(buy_frame, text=" -- (c/kWh)")
+            self.lbl_buy = tk.Label(buy_frame, text=NO_PRICE_TEXT)
             self.lbl_buy.pack(side="left")
 
-            # Controlled load is optional: many accounts have no such channel, so this row can show N/A
+            # Controlled load is optional: many accounts have no such channel, so this row shows the empty placeholder
             controlled_frame = tk.Frame(body)
             controlled_frame.pack(anchor="w", pady=1)
             tk.Label(controlled_frame, text="Buy (Controlled):", width=PRICE_LABEL_WIDTH, anchor="e").pack(side="left")
-            self.lbl_buy_controlled = tk.Label(controlled_frame, text=" N/A")
+            self.lbl_buy_controlled = tk.Label(controlled_frame, text=NO_PRICE_TEXT)
             self.lbl_buy_controlled.pack(side="left")
             self.btn_buy_c_low = self._make_alert_button(
                 controlled_frame, "buy_c_low_enabled",
@@ -399,7 +551,7 @@ class AmberMonitorApp:
             sell_frame = tk.Frame(body)
             sell_frame.pack(anchor="w", pady=1)
             tk.Label(sell_frame, text="Sell Price:", width=PRICE_LABEL_WIDTH, anchor="e").pack(side="left")
-            self.lbl_sell = tk.Label(sell_frame, text=" -- (c/kWh)")
+            self.lbl_sell = tk.Label(sell_frame, text=NO_PRICE_TEXT)
             self.lbl_sell.pack(side="left")
             self.btn_sell_low = self._make_alert_button(
                 sell_frame, "sell_low_enabled",
@@ -474,15 +626,23 @@ class AmberMonitorApp:
             "Usage History": USAGE_TRACES,
         }
         self.trace_vars = {
-            section: {name: tk.BooleanVar(value=True) for name in names}
+            section: {
+                name: tk.BooleanVar(value=self.saved["traces"].get((section, name), True))
+                for name in names
+            }
             for section, names in self.sub_traces.items()
         }
         for section, fields in self.sub_fields.items():
             for field, _ in fields:
-                self.field_vars[(section, field)] = tk.BooleanVar(value=True)
+                self.field_vars[(section, field)] = tk.BooleanVar(
+                    value=self.saved["fields"].get((section, field), True))
+        self._apply_saved_visibility()
+        self._fit_window_height()
         self.show_prices_today_plot()
         self.show_usage_plot()
         self._sync_plot_x_limits(self.prices_today_plot)
+        # Re-fit once the plots have drawn, since their heights affect the content size
+        self.root.after_idle(self._fit_window_height)
         self.root.after_idle(self.root.deiconify)
         self.root.after_idle(self.root.lift)
 
@@ -602,7 +762,7 @@ class AmberMonitorApp:
         outer = tk.Frame(parent_outer, bd=1, relief="solid")
         outer.pack(fill="x", padx=6, pady=2)
         self.section_frames[title_text] = outer
-        self.section_vars[title_text] = tk.BooleanVar(value=True)
+        self.section_vars[title_text] = tk.BooleanVar(value=self.saved["visible"].get(title_text, True))
         
         header_frame = tk.Frame(outer, bg="#2d2d2d")
         header_frame.pack(fill="x", padx=1, pady=1)
@@ -697,6 +857,39 @@ class AmberMonitorApp:
                 self._set_field_visible(section, name)
         else:
             self._set_section_visible(key)
+        self._save_ui_settings()
+
+    def _apply_saved_visibility(self):
+        """Hide sections and fields that were hidden last time, before the window is shown."""
+        for title, var in self.section_vars.items():
+            if not var.get():
+                self.section_frames[title].pack_forget()
+        for section, fields in self.sub_fields.items():
+            for field, frame in fields:
+                if not self.field_vars[(section, field)].get():
+                    frame.pack_forget()
+
+    def _collect_settings(self):
+        return {
+            "visible": {t: v.get() for t, v in self.section_vars.items()},
+            "fields": {k: v.get() for k, v in self.field_vars.items()},
+            "traces": {(s, n): v.get() for s, names in self.trace_vars.items() for n, v in names.items()},
+            "speakers": {
+                "sound": self.sound_enabled, "est_sound": self.est_sound_enabled,
+                "buy_low": self.buy_low_enabled, "buy_high": self.buy_high_enabled,
+                "buy_c_low": self.buy_c_low_enabled, "buy_c_high": self.buy_c_high_enabled,
+                "sell_low": self.sell_low_enabled, "sell_high": self.sell_high_enabled,
+            },
+            "thresholds": {
+                "buy_low": self.buy_low_thresh, "buy_high": self.buy_high_thresh,
+                "buy_c_low": self.buy_c_low_thresh, "buy_c_high": self.buy_c_high_thresh,
+                "sell_low": self.sell_low_thresh, "sell_high": self.sell_high_thresh,
+            },
+            "polling": self.live_interval,
+        }
+
+    def _save_ui_settings(self):
+        save_settings(self._collect_settings())
 
     def _close_view_menu(self):
         if self.view_popup is not None:
@@ -790,6 +983,7 @@ class AmberMonitorApp:
         val = simpledialog.askfloat(" ", "Set polling interval (sec):", initialvalue=self.live_interval, minvalue=1.0, maxvalue=3600.0)
         if val is not None:
             self.live_interval = float(val)
+            self._save_ui_settings()
 
     def _load_plot_records(self, filename):
         file_path = os.path.join(DATA_DIR, filename)
@@ -1901,7 +2095,7 @@ class AmberMonitorApp:
 
     def _style_price(self, lbl, val, last_val, estimated, is_buy):
         if val is None:
-            lbl.config(text=" N/A", fg="#888888", bg="#252526")
+            lbl.config(text=NO_PRICE_TEXT, fg="#888888", bg="#252526")
             return
             
         if estimated:
@@ -1968,6 +2162,8 @@ class AmberMonitorApp:
         button = tk.Button(parent, text="🔈", width=2, height=1, padx=0, pady=0, fg="#888888", relief="flat", activebackground="#3d3d3d", activeforeground="#888888")
         self._configure_icon_button(button, bg=bg)
         button.config(command=partial(self._toggle_alert, enabled_attr, button))
+        if getattr(self, enabled_attr, False):
+            button.config(text="🔊", fg="#50fa7b", activeforeground="#50fa7b")
         button.pack(side="left", padx=padx)
         if threshold_attr:
             button.bind("<Button-3>", partial(self._edit_threshold, threshold_attr, threshold_prompt))
@@ -1980,11 +2176,13 @@ class AmberMonitorApp:
         color = "#50fa7b" if enabled else "#888888"
         icon = "🔊" if enabled else "🔈"
         button.config(text=icon, fg=color, activeforeground=color)
+        self._save_ui_settings()
 
     def _edit_threshold(self, threshold_attr, prompt, event=None):
         val = simpledialog.askfloat("Alert threshold", prompt, initialvalue=getattr(self, threshold_attr))
         if val is not None:
             setattr(self, threshold_attr, val)
+            self._save_ui_settings()
 
     @staticmethod
     def _set_button_color(button, color):
@@ -2032,6 +2230,7 @@ class AmberMonitorApp:
             self._run_async(self.fetch_usage)
 
     def _ticker_tick(self):
+        _check_quit_request(self)
         now = datetime.now()
         now_ts = time.time()
 
@@ -2101,6 +2300,11 @@ if __name__ == "__main__":
         root = tk.Tk()
         app = AmberMonitorApp(root)
         root.mainloop()
+    except KeyboardInterrupt:
+        # Ctrl+C or a debugger stop: exit quietly instead of printing a traceback
+        pass
     except Exception as e:
         log_error(f"CRITICAL ERROR: Unhandled exception during startup: {e}")
         raise
+    finally:
+        release_lock()
